@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UnitType {
+  weight
+  qty
+}
+
+enum OrderStatus {
+  unpaid
+  paid
+  cancelled
+}
+
+enum SupermarketOrderStatus {
+  active
+  paid
+  cancelled
+}
+
+enum SupermarketItemType {
+  own
+  purchase
+}
+
+enum PrintRecordType {
+  order
+  customer_debt
+}
+
+enum PrintRecordStatus {
+  success
+  failed
+}
+
+model StaffUser {
+  id           Int            @id @default(autoincrement())
+  username     String         @unique @db.VarChar(40)
+  passwordHash String         @map("password_hash") @db.VarChar(128)
+  name         String         @db.VarChar(40)
+  enabled      Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  sessions     StaffSession[]
+  orders       Order[]
+  supermarketOrders SupermarketOrder[]
+  printRecords PrintRecord[]
+
+  @@map("staff_users")
+}
+
+model StaffSession {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  staffId   Int       @map("staff_id")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  staff     StaffUser @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("staff_sessions")
+}
+
+model Goods {
+  id        Int         @id @default(autoincrement())
+  name      String      @db.VarChar(50)
+  unitType  UnitType    @map("unit_type")
+  costPrice Decimal     @map("cost_price") @db.Decimal(10, 2)
+  salePrice Decimal     @default(0) @map("sale_price") @db.Decimal(10, 2)
+  defaultCommission Decimal @default(0) @map("default_commission") @db.Decimal(10, 2)
+  stock     Decimal     @db.Decimal(10, 2)
+  arrivedAt DateTime    @default(now()) @map("arrived_at")
+  enabled   Boolean     @default(true)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  items     OrderItem[]
+  supermarketItems SupermarketOrderItem[]
+
+  @@index([name])
+  @@map("goods")
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  orders    Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  orderNo      String      @unique @map("order_no") @db.VarChar(24)
+  customerId   Int         @map("customer_id")
+  customerName String      @map("customer_name") @db.VarChar(50)
+  staffId      Int         @map("staff_id")
+  staffName    String      @map("staff_name") @db.VarChar(40)
+  goodsAmount  Decimal     @map("goods_amount") @db.Decimal(10, 2)
+  commission   Decimal     @db.Decimal(10, 2)
+  totalAmount  Decimal     @map("total_amount") @db.Decimal(10, 2)
+  profitAmount Decimal     @default(0) @map("profit_amount") @db.Decimal(10, 2)
+  status       OrderStatus @default(unpaid)
+  paidAt       DateTime?   @map("paid_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  staff        StaffUser   @relation(fields: [staffId], references: [id])
+  items        OrderItem[]
+
+  @@index([createdAt, customerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @map("order_id")
+  goodsId   Int      @map("goods_id")
+  goodsName String   @map("goods_name") @db.VarChar(50)
+  unitType  UnitType @map("unit_type")
+  quantity  Decimal  @db.Decimal(10, 2)
+  weight    Decimal? @db.Decimal(10, 2)
+  price     Decimal  @db.Decimal(10, 2)
+  commission Decimal @default(0) @db.Decimal(10, 2)
+  subtotal  Decimal  @db.Decimal(10, 2)
+  costPrice Decimal  @default(0) @map("cost_price") @db.Decimal(10, 2)
+  profit    Decimal  @default(0) @db.Decimal(10, 2)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  goods     Goods    @relation(fields: [goodsId], references: [id])
+
+  @@index([orderId])
+  @@index([goodsId])
+  @@map("order_items")
+}
+
+model SupermarketOrder {
+  id              Int                    @id @default(autoincrement())
+  orderNo         String                 @unique @map("order_no") @db.VarChar(24)
+  supermarketName String                 @map("supermarket_name") @db.VarChar(80)
+  staffId         Int                    @map("staff_id")
+  staffName       String                 @map("staff_name") @db.VarChar(40)
+  totalAmount     Decimal                @map("total_amount") @db.Decimal(10, 2)
+  totalCost       Decimal                @map("total_cost") @db.Decimal(10, 2)
+  totalCommission Decimal                @map("total_commission") @db.Decimal(10, 2)
+  totalProfit     Decimal                @map("total_profit") @db.Decimal(10, 2)
+  status          SupermarketOrderStatus @default(active)
+  cancelledAt     DateTime?              @map("cancelled_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  staff           StaffUser              @relation(fields: [staffId], references: [id])
+  items           SupermarketOrderItem[]
+
+  @@index([createdAt])
+  @@index([supermarketName])
+  @@index([status])
+  @@map("supermarket_orders")
+}
+
+model SupermarketOrderItem {
+  id          Int                 @id @default(autoincrement())
+  orderId     Int                 @map("order_id")
+  type        SupermarketItemType
+  goodsId     Int?                @map("goods_id")
+  goodsName   String              @map("goods_name") @db.VarChar(50)
+  unitType    UnitType            @map("unit_type")
+  quantity    Decimal             @db.Decimal(10, 2)
+  weight      Decimal?            @db.Decimal(10, 2)
+  price       Decimal             @db.Decimal(10, 2)
+  commission  Decimal             @default(0) @db.Decimal(10, 2)
+  costPrice   Decimal             @map("cost_price") @db.Decimal(10, 2)
+  subtotal    Decimal             @db.Decimal(10, 2)
+  costAmount  Decimal             @map("cost_amount") @db.Decimal(10, 2)
+  profit      Decimal             @db.Decimal(10, 2)
+  order       SupermarketOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  goods       Goods?              @relation(fields: [goodsId], references: [id])
+
+  @@index([orderId])
+  @@index([goodsId])
+  @@map("supermarket_order_items")
+}
+
+model PrintRecord {
+  id             Int               @id @default(autoincrement())
+  type           PrintRecordType
+  status         PrintRecordStatus
+  staffId        Int               @map("staff_id")
+  staffName      String            @map("staff_name") @db.VarChar(40)
+  orderId        Int?              @map("order_id")
+  orderNo        String?           @map("order_no") @db.VarChar(24)
+  customerId     Int?              @map("customer_id")
+  customerName   String?           @map("customer_name") @db.VarChar(50)
+  printerSn      String?           @map("printer_sn") @db.VarChar(80)
+  content        String            @db.Text
+  response       Json?
+  errorMessage   String?           @map("error_message") @db.VarChar(500)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  staff          StaffUser         @relation(fields: [staffId], references: [id])
+
+  @@index([createdAt])
+  @@index([type, status])
+  @@index([staffId])
+  @@index([orderId])
+  @@index([orderNo])
+  @@index([customerId])
+  @@map("print_records")
+}

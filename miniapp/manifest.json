@@ -1,0 +1,53 @@
+{
+    "name" : "东成果业",
+    "appid" : "__UNI__462898E",
+    "description" : "东成果业点单应用",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true,
+            "delay" : 0
+        },
+        "modules" : {},
+        "distribute" : {
+            "android" : {
+                "packagename" : "com.dcgy.order",
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
+                ],
+                "abiFilters" : [ "armeabi-v7a", "arm64-v8a" ]
+            },
+            "icons" : {
+                "android" : {
+                    "hdpi" : "static/app-icons/icon-72.png",
+                    "xhdpi" : "static/app-icons/icon-96.png",
+                    "xxhdpi" : "static/app-icons/icon-144.png",
+                    "xxxhdpi" : "static/app-icons/icon-192.png"
+                }
+            },
+            "ios" : {
+                "dSYMs" : false
+            }
+        }
+    },
+    "mp-weixin" : {
+        "appid" : "wx9ad4fd7db4576a92",
+        "setting" : {
+            "urlCheck" : true,
+            "es6" : true,
+            "postcss" : true,
+            "minified" : true,
+            "lazyCodeLoading" : "requiredComponents",
+            "lazyCodeLoadingWithUrl" : true
+        },
+        "usingComponents" : true
+    }
+}

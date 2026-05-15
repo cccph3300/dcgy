@@ -1,0 +1,204 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/order/index",
+      "style": {
+        "navigationBarTitleText": "点单"
+      }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": {
+        "navigationBarTitleText": "订单"
+      }
+    },
+    {
+      "path": "pages/orders/debt",
+      "style": {
+        "navigationBarTitleText": "订单/客户欠账"
+      }
+    },
+    {
+      "path": "pages/orders/detail",
+      "style": {
+        "navigationBarTitleText": "订单/订单详情"
+      }
+    },
+    {
+      "path": "pages/inventory/index",
+      "style": {
+        "navigationBarTitleText": "其他"
+      }
+    },
+    {
+      "path": "pages/inventory/list",
+      "style": {
+        "navigationBarTitleText": "其他/库存"
+      }
+    },
+    {
+      "path": "pages/recycle/index",
+      "style": {
+        "navigationBarTitleText": "其他/回收站"
+      }
+    },
+    {
+      "path": "pages/profit/index",
+      "style": {
+        "navigationBarTitleText": "其他/利润"
+      }
+    },
+    {
+      "path": "pages/delivery/index",
+      "style": {
+        "navigationBarTitleText": "超市配送"
+      }
+    },
+    {
+      "path": "pages/delivery/create",
+      "style": {
+        "navigationBarTitleText": "超市配送/新建送货单"
+      }
+    },
+    {
+      "path": "pages/delivery/list",
+      "style": {
+        "navigationBarTitleText": "超市配送/超市订单"
+      }
+    },
+    {
+      "path": "pages/delivery/detail",
+      "style": {
+        "navigationBarTitleText": "超市配送/超市订单/送货详情"
+      }
+    },
+    {
+      "path": "pages/delivery/recycle",
+      "style": {
+        "navigationBarTitleText": "超市配送/超市订单回收站"
+      }
+    },
+    {
+      "path": "pages/delivery/ocr",
+      "style": {
+        "navigationBarTitleText": "超市配送/文本识别送货单"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "subpackages/other",
+      "pages": [
+        {
+          "path": "inventory/list",
+          "style": {
+            "navigationBarTitleText": "其他/库存"
+          }
+        },
+        {
+          "path": "recycle/index",
+          "style": {
+            "navigationBarTitleText": "其他/回收站"
+          }
+        },
+        {
+          "path": "profit/index",
+          "style": {
+            "navigationBarTitleText": "其他/利润"
+          }
+        },
+        {
+          "path": "prints/index",
+          "style": {
+            "navigationBarTitleText": "其他/打印记录"
+          }
+        },
+        {
+          "path": "prints/detail",
+          "style": {
+            "navigationBarTitleText": "其他/打印详情"
+          }
+        }
+      ]
+    },
+    {
+      "root": "subpackages/delivery",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationBarTitleText": "超市配送"
+          }
+        },
+        {
+          "path": "create",
+          "style": {
+            "navigationBarTitleText": "超市配送/新建送货单"
+          }
+        },
+        {
+          "path": "list",
+          "style": {
+            "navigationBarTitleText": "超市配送/超市订单"
+          }
+        },
+        {
+          "path": "detail",
+          "style": {
+            "navigationBarTitleText": "超市配送/超市订单/送货详情"
+          }
+        },
+        {
+          "path": "recycle",
+          "style": {
+            "navigationBarTitleText": "超市配送/超市订单回收站"
+          }
+        },
+        {
+          "path": "ocr",
+          "style": {
+            "navigationBarTitleText": "超市配送/文本识别送货单"
+          }
+        }
+      ]
+    }
+  ],
+  "tabBar": {
+    "color": "#718078",
+    "selectedColor": "#16945f",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/order/index",
+        "text": "点单",
+        "iconPath": "static/tabbar/order.png",
+        "selectedIconPath": "static/tabbar/order-active.png"
+      },
+      {
+        "pagePath": "pages/orders/index",
+        "text": "订单",
+        "iconPath": "static/tabbar/orders.png",
+        "selectedIconPath": "static/tabbar/orders-active.png"
+      },
+      {
+        "pagePath": "pages/inventory/index",
+        "text": "其他",
+        "iconPath": "static/tabbar/inventory.png",
+        "selectedIconPath": "static/tabbar/inventory-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "水果点单",
+    "navigationBarBackgroundColor": "#f8fbf2",
+    "backgroundColor": "#f6f8ef"
+  }
+}

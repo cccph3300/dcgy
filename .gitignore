@@ -1,0 +1,31 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 构建产物
+dist/
+unpackage/
+miniapp/unpackage/
+dcgy_server_publish/.nitro/
+dcgy_server_publish/.output/
+
+# 环境变量和日志
+.env
+**/.env
+*.log
+dcgy_server_publish/dev-server.log
+
+# 敏感文件
+dcgy_keys/
+
+# 临时演示目录
+print-demo/
+mockups/
+
+# 编辑器和系统文件
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.hbuilderx/
+miniapp/.hbuilderx/
