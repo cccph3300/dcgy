@@ -8,12 +8,13 @@
       <view class="section-title">{{ text.title }}</view>
       <view class="field-row">
         <text class="field-label">{{ text.user }}</text>
-        <input v-model="username" class="input" :placeholder="text.userPlaceholder" />
+        <input v-model="username" class="input" :placeholder="text.userPlaceholder" @input="clearLoginError" />
       </view>
       <view class="field-row">
         <text class="field-label">{{ text.password }}</text>
-        <input v-model="password" class="input" password :placeholder="text.passwordPlaceholder" />
+        <input v-model="password" class="input" password :placeholder="text.passwordPlaceholder" @input="clearLoginError" @confirm="login" />
       </view>
+      <view v-if="loginError" class="login-error">{{ loginError }}</view>
       <button class="soft-button primary" :disabled="loading" @click="login">
         {{ loading ? text.loggingIn : text.login }}
       </button>
@@ -33,7 +34,8 @@ const zh = {
   passwordPlaceholder: '\u8bf7\u8f93\u5165\u5bc6\u7801',
   login: '\u767b\u5f55',
   loggingIn: '\u767b\u5f55\u4e2d...',
-  missing: '\u8bf7\u8f93\u5165\u8d26\u53f7\u548c\u5bc6\u7801'
+  missing: '\u8bf7\u8f93\u5165\u8d26\u53f7\u548c\u5bc6\u7801',
+  invalid: '\u8d26\u53f7\u6216\u5bc6\u7801\u4e0d\u6b63\u786e'
 }
 
 export default {
@@ -42,13 +44,18 @@ export default {
       text: zh,
       username: '',
       password: '',
-      loading: false
+      loading: false,
+      loginError: ''
     }
   },
   methods: {
+    clearLoginError() {
+      this.loginError = ''
+    },
     async login() {
+      this.loginError = ''
       if (!this.username || !this.password) {
-        uni.showToast({ title: this.text.missing, icon: 'none' })
+        this.loginError = this.text.missing
         return
       }
 
@@ -60,10 +67,14 @@ export default {
           data: {
             username: this.username,
             password: this.password
-          }
+          },
+          auth: false,
+          showErrorToast: false
         })
         setSession(data.token, data.staff || data)
         uni.reLaunch({ url: '/pages/order/index' })
+      } catch (err) {
+        this.loginError = err?.message || this.text.invalid
       } finally {
         this.loading = false
       }
@@ -153,5 +164,13 @@ export default {
 .soft-button {
   width: 100%;
   margin-top: 6rpx;
+}
+
+.login-error {
+  min-height: 36rpx;
+  margin: -4rpx 0 14rpx 90rpx;
+  color: #d64b3f;
+  font-size: 24rpx;
+  font-weight: 800;
 }
 </style>

@@ -38,6 +38,7 @@ export function requireLogin() {
 export function request(options) {
   const token = getToken()
   const needAuth = options.auth !== false
+  const showErrorToast = options.showErrorToast !== false
   const header = {
     'content-type': 'application/json',
     ...(options.header || {}),
@@ -67,7 +68,7 @@ export function request(options) {
 
         if (res.statusCode < 200 || res.statusCode >= 300) {
           const message = res.data?.statusMessage || res.data?.message || '请求失败'
-          uni.showToast({ title: message, icon: 'none' })
+          if (showErrorToast) uni.showToast({ title: message, icon: 'none' })
           reject(new Error(message))
           return
         }
@@ -76,7 +77,7 @@ export function request(options) {
       },
       fail(err) {
         const message = err?.errMsg?.includes('timeout') ? '请求超时，请检查接口地址' : '网络连接失败'
-        uni.showToast({ title: message, icon: 'none' })
+        if (showErrorToast) uni.showToast({ title: message, icon: 'none' })
         reject(new Error(message))
       }
     })
@@ -122,7 +123,7 @@ function requestByAnyService(options, header, needAuth) {
 
         if (statusCode < 200 || statusCode >= 300) {
           const message = res.data?.statusMessage || res.data?.message || '请求失败'
-          uni.showToast({ title: message, icon: 'none' })
+          if (options.showErrorToast !== false) uni.showToast({ title: message, icon: 'none' })
           reject(new Error(message))
           return
         }
@@ -131,7 +132,7 @@ function requestByAnyService(options, header, needAuth) {
       },
       fail(err) {
         const message = err?.errMsg?.includes('timeout') ? '请求超时，请检查 AnyService 配置' : '网络连接失败'
-        uni.showToast({ title: message, icon: 'none' })
+        if (options.showErrorToast !== false) uni.showToast({ title: message, icon: 'none' })
         reject(new Error(message))
       }
     })
