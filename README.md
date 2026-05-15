@@ -85,3 +85,10 @@ HBuilderX 打开 miniapp
 ```
 
 注意不要上传整个 `miniapp` 源码到网页目录，只上传 H5 打包产物。
+
+配置完成:
+```bash
+rm -rf /www/wwwroot/dcgy_repo/dcgy/dcgy_server_publish/node_modules
+rm -rf /www/wwwroot/dcgy_repo/dcgy/dcgy_server_publish/.output
+rm -rf /www/wwwroot/dcgy_repo/dcgy/dcgy_server_publish/.nitro
+```
