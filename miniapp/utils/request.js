@@ -1,4 +1,4 @@
-import { ANYSERVICE_ENABLED, ANYSERVICE_NAME, ANYSERVICE_WX_SERVICE, API_BASE, TCB_ENV_ID } from '../config/api'
+import { ANYSERVICE_NAME, ANYSERVICE_WX_SERVICE, API_BASE, TCB_ENV_ID, shouldUseAnyService } from '../config/api'
 
 const TOKEN_KEY = 'dcgy_token'
 const STAFF_KEY = 'dcgy_staff'
@@ -46,7 +46,7 @@ export function request(options) {
   const baseUrl = API_BASE.replace(/\/$/, '')
 
   // #ifdef MP-WEIXIN
-  if (ANYSERVICE_ENABLED) {
+  if (shouldUseAnyService()) {
     return requestByAnyService(options, header, needAuth)
   }
   // #endif
