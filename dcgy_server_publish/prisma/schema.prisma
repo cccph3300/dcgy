@@ -40,6 +40,24 @@ enum PrintRecordStatus {
   failed
 }
 
+enum RetailProductSource {
+  stock
+  consignment
+}
+
+enum RetailCategory {
+  special
+  imported
+  domestic
+  gift
+  dry
+}
+
+enum RetailOrderStatus {
+  unpaid
+  paid
+}
+
 model StaffUser {
   id           Int            @id @default(autoincrement())
   username     String         @unique @db.VarChar(40)
@@ -51,6 +69,8 @@ model StaffUser {
   orders       Order[]
   supermarketOrders SupermarketOrder[]
   printRecords PrintRecord[]
+  retailProducts RetailProduct[]
+  retailOrders RetailOrder[]
 
   @@map("staff_users")
 }
@@ -81,6 +101,7 @@ model Goods {
   updatedAt DateTime    @updatedAt @map("updated_at")
   items     OrderItem[]
   supermarketItems SupermarketOrderItem[]
+  retailProducts RetailProduct[]
 
   @@index([name])
   @@map("goods")
@@ -210,4 +231,84 @@ model PrintRecord {
   @@index([orderNo])
   @@index([customerId])
   @@map("print_records")
+}
+
+model RetailProduct {
+  id                Int                 @id @default(autoincrement())
+  name              String              @db.VarChar(80)
+  description       String?             @db.VarChar(200)
+  category          RetailCategory
+  sourceType        RetailProductSource @map("source_type")
+  goodsId           Int?                @map("goods_id")
+  unitType          UnitType            @map("unit_type")
+  price             Decimal             @db.Decimal(10, 2)
+  costPrice         Decimal             @default(0) @map("cost_price") @db.Decimal(10, 2)
+  commission        Decimal             @default(0) @db.Decimal(10, 2)
+  imageUrl          String?             @map("image_url") @db.VarChar(500)
+  sortOrder         Int                 @default(0) @map("sort_order")
+  enabled           Boolean             @default(true)
+  staffId           Int                 @map("staff_id")
+  staffName         String              @map("staff_name") @db.VarChar(40)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  goods             Goods?              @relation(fields: [goodsId], references: [id])
+  staff             StaffUser           @relation(fields: [staffId], references: [id])
+  items             RetailOrderItem[]
+
+  @@index([category, sortOrder])
+  @@index([enabled])
+  @@index([goodsId])
+  @@map("retail_products")
+}
+
+model RetailOrder {
+  id              Int               @id @default(autoincrement())
+  orderNo         String            @unique @map("order_no") @db.VarChar(24)
+  customerName    String            @map("customer_name") @db.VarChar(80)
+  customerPhone   String?           @map("customer_phone") @db.VarChar(40)
+  remark          String?           @db.VarChar(300)
+  staffId         Int               @map("staff_id")
+  staffName       String            @map("staff_name") @db.VarChar(40)
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
+  totalCost       Decimal           @default(0) @map("total_cost") @db.Decimal(10, 2)
+  totalProfit     Decimal           @default(0) @map("total_profit") @db.Decimal(10, 2)
+  totalCommission Decimal           @map("total_commission") @db.Decimal(10, 2)
+  status          RetailOrderStatus @default(unpaid)
+  paidAt          DateTime?         @map("paid_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  staff           StaffUser         @relation(fields: [staffId], references: [id])
+  items           RetailOrderItem[]
+
+  @@index([createdAt])
+  @@index([customerName])
+  @@index([status])
+  @@map("retail_orders")
+}
+
+model RetailOrderItem {
+  id          Int                 @id @default(autoincrement())
+  orderId     Int                 @map("order_id")
+  productId   Int?                @map("product_id")
+  sourceType  RetailProductSource @map("source_type")
+  goodsId     Int?                @map("goods_id")
+  goodsName   String              @map("goods_name") @db.VarChar(80)
+  category    RetailCategory
+  unitType    UnitType            @map("unit_type")
+  quantity    Decimal             @db.Decimal(10, 2)
+  weight      Decimal?            @db.Decimal(10, 2)
+  price       Decimal             @db.Decimal(10, 2)
+  costPrice   Decimal             @default(0) @map("cost_price") @db.Decimal(10, 2)
+  costAmount  Decimal             @default(0) @map("cost_amount") @db.Decimal(10, 2)
+  profit      Decimal             @default(0) @db.Decimal(10, 2)
+  commission  Decimal             @default(0) @db.Decimal(10, 2)
+  subtotal    Decimal             @db.Decimal(10, 2)
+  imageUrl    String?             @map("image_url") @db.VarChar(500)
+  order       RetailOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     RetailProduct?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([goodsId])
+  @@map("retail_order_items")
 }
