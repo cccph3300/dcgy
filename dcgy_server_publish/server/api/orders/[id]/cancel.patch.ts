@@ -2,6 +2,7 @@ import { createError } from 'h3'
 import { requireStaff } from '../../../utils/auth'
 import { prisma } from '../../../utils/prisma'
 import { restoreStock } from '../../../utils/orders'
+import { recalculateCustomerDebt } from '../../../utils/customer-payments'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
@@ -20,9 +21,11 @@ export default defineEventHandler(async (event) => {
     }
 
     await restoreStock(tx, order.items)
-    return tx.order.update({
+    const cancelledOrder = await tx.order.update({
       where: { id },
       data: { status: 'cancelled' }
     })
+    await recalculateCustomerDebt(order.customerId, tx)
+    return cancelledOrder
   })
 })

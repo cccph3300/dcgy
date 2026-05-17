@@ -3,6 +3,7 @@ import { prisma } from '../../utils/prisma'
 import { requireStaff } from '../../utils/auth'
 import { assertName, toMoney } from '../../utils/number'
 import { buildOrderItems, deductStock, mapOrderItem, restoreStock } from '../../utils/orders'
+import { recalculateCustomerDebt } from '../../utils/customer-payments'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
@@ -43,7 +44,7 @@ export default defineEventHandler(async (event) => {
     const profitAmount = Number(items.reduce((sum, item) => sum + item.profit, 0).toFixed(2))
     const totalAmount = goodsAmount
 
-    return tx.order.update({
+    const updatedOrder = await tx.order.update({
       where: { id },
       data: {
         customerId: customer.id,
@@ -56,5 +57,10 @@ export default defineEventHandler(async (event) => {
       },
       include: { items: true }
     })
+    await recalculateCustomerDebt(order.customerId, tx)
+    if (customer.id !== order.customerId) {
+      await recalculateCustomerDebt(customer.id, tx)
+    }
+    return updatedOrder
   })
 })

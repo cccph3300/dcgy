@@ -108,10 +108,12 @@ model Goods {
 }
 
 model Customer {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(50)
-  createdAt DateTime @default(now()) @map("created_at")
-  orders    Order[]
+  id             Int      @id @default(autoincrement())
+  name           String   @unique @db.VarChar(50)
+  totalDebt      Decimal  @default(0) @map("total_debt") @db.Decimal(10, 2)
+  partialPayment Decimal  @default(0) @map("partial_payment") @db.Decimal(10, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  orders         Order[]
 
   @@map("customers")
 }

@@ -2,6 +2,7 @@ import { createError, readBody } from 'h3'
 import { prisma } from '../../utils/prisma'
 import { requireStaff } from '../../utils/auth'
 import { buildOrderItems, createOrderNo, deductStock, mapOrderItem } from '../../utils/orders'
+import { recalculateCustomerDebt } from '../../utils/customer-payments'
 
 const DEFAULT_CUSTOMER_NAME = '客户'
 
@@ -39,7 +40,7 @@ export default defineEventHandler(async (event) => {
     const profitAmount = Number(items.reduce((sum, item) => sum + item.profit, 0).toFixed(2))
     const totalAmount = goodsAmount
 
-    return tx.order.create({
+    const order = await tx.order.create({
       data: {
         orderNo: createOrderNo(),
         customerId: customer.id,
@@ -54,5 +55,7 @@ export default defineEventHandler(async (event) => {
       },
       include: { items: true }
     })
+    await recalculateCustomerDebt(customer.id, tx)
+    return order
   })
 })

@@ -4,6 +4,10 @@ import { formatDecimal } from './number'
 
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
 
+type CustomerDebtOptions = {
+  includeAllOrders?: boolean
+}
+
 function mapOrder(order: OrderWithItems) {
   return {
     id: order.id,
@@ -28,10 +32,11 @@ function mapOrder(order: OrderWithItems) {
   }
 }
 
-export async function getCustomerDebt(customerId: number) {
+export async function getCustomerDebt(customerId: number, options: CustomerDebtOptions = {}) {
+  const includeAllOrders = options.includeAllOrders !== false
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    select: { id: true, name: true }
+    select: { id: true, name: true, totalDebt: true, partialPayment: true }
   })
   if (!customer) return null
 
@@ -44,28 +49,43 @@ export async function getCustomerDebt(customerId: number) {
     include: { items: true }
   })
 
-  const oneYearAgo = new Date()
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-
-  const allOrders = await prisma.order.findMany({
-    where: {
-      customerId,
-      createdAt: { gte: oneYearAgo }
-    },
-    orderBy: { createdAt: 'desc' },
-    include: { items: true }
-  })
+  const allOrders = includeAllOrders
+    ? await prisma.order.findMany({
+        where: {
+          customerId,
+          createdAt: { gte: oneYearAgo() }
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { items: true }
+      })
+    : []
 
   const totalAmount = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0)
   const profitAmount = orders.reduce((sum, order) => sum + Number(order.profitAmount), 0)
+  const partialPayment = Math.min(Number(customer.partialPayment || 0), totalAmount)
+  const unpaidAmount = Math.max(totalAmount - partialPayment, 0)
 
   return {
-    customer,
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      totalDebt: formatDecimal(totalAmount),
+      partialPayment: formatDecimal(partialPayment)
+    },
     totalAmount: formatDecimal(totalAmount),
+    totalDebt: formatDecimal(totalAmount),
+    partialPayment: formatDecimal(partialPayment),
+    unpaidAmount: formatDecimal(unpaidAmount),
     profitAmount: formatDecimal(profitAmount),
     orderCount: orders.length,
     allOrderCount: allOrders.length,
     orders: orders.map(mapOrder),
     allOrders: allOrders.map(mapOrder)
   }
+}
+
+function oneYearAgo() {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() - 1)
+  return date
 }

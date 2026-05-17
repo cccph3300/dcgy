@@ -65,7 +65,8 @@ export default defineEventHandler(async (event) => {
     orderBy: { name: 'asc' },
     select: {
       id: true,
-      name: true
+      name: true,
+      partialPayment: true
     }
   })
   const customerIds = customers.map(customer => customer.id)
@@ -86,11 +87,14 @@ export default defineEventHandler(async (event) => {
     .map((customer) => {
       const debt = debtMap.get(customer.id)
       const debtAmount = Number(debt?._sum.totalAmount || 0)
+      const partialPayment = Math.min(Number(customer.partialPayment || 0), debtAmount)
       return {
         id: customer.id,
         name: customer.name,
         initial: getInitial(customer.name),
-        debtAmount: Number(debtAmount.toFixed(2)),
+        debtAmount: Number(Math.max(debtAmount - partialPayment, 0).toFixed(2)),
+        totalDebt: Number(debtAmount.toFixed(2)),
+        partialPayment: Number(partialPayment.toFixed(2)),
         unpaidOrderCount: debt?._count._all || 0
       }
     })
