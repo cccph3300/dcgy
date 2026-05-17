@@ -6,6 +6,9 @@
     <view v-else>
       <view class="shop-head">
         <view class="shop-name">{{ text.shopName }}</view>
+        <view v-if="!isSharedView" class="shop-actions">
+          <button class="shop-print-button" :disabled="printing" @click="confirmPrintDebtBill">{{ printing ? text.printing : text.printBill }}</button>
+        </view>
       </view>
 
       <view class="customer-line">
@@ -14,24 +17,35 @@
       </view>
 
       <view class="summary-card">
-        <view>
-          <view class="summary-label">{{ text.debtAmount }}</view>
-          <view class="summary-money">¥{{ amountText(debt, 'totalAmount', 'total') }}<text>/{{ debt.orderCount }}{{ text.orderUnit }}</text></view>
+        <view class="summary-main">
+          <view class="summary-title">{{ text.debtAmount }}</view>
+          <view class="summary-row">
+            <text class="summary-label">{{ text.totalDebt }}</text>
+            <text class="summary-value">¥{{ amountText(debt, 'totalDebt', 'totalAmount', 'total') }}/{{ debt.orderCount }}{{ text.orderUnit }}</text>
+          </view>
+          <view class="summary-row">
+            <text class="summary-label">{{ text.partialPayment }}</text>
+            <text class="summary-value">¥{{ amountText(debt, 'partialPayment') }}</text>
+          </view>
+          <view class="summary-row unpaid-row">
+            <text class="summary-label">{{ text.unpaidAmount }}</text>
+            <text class="summary-unpaid">¥{{ amountText(debt, 'unpaidAmount') }}</text>
+          </view>
         </view>
-        <view class="summary-actions">
+        <view v-if="!isSharedView" class="summary-actions">
+          <button class="summary-action repay-action" @click="openPartialPayment">{{ text.partialPayButton }}</button>
           <!-- #ifdef MP-WEIXIN -->
-          <button v-if="!isSharedView" class="summary-action" :disabled="!shareToken || preparingShare" open-type="share">
+          <button class="summary-action share-action" :disabled="!shareToken || preparingShare" open-type="share">
             {{ preparingShare ? text.sharePreparing : text.shareBill }}
           </button>
           <!-- #endif -->
           <!-- #ifndef MP-WEIXIN -->
-          <button v-if="!isSharedView" class="summary-action" @click="ignoreWebShare">{{ text.shareBill }}</button>
+          <button class="summary-action share-action" @click="ignoreWebShare">{{ text.shareBill }}</button>
           <!-- #endif -->
-          <button v-if="!isSharedView" class="summary-action print-action" :disabled="printing" @click="printDebtBill">{{ printing ? text.printing : text.printBill }}</button>
         </view>
       </view>
 
-      <view v-if="!isSharedView" class="tabs">
+      <view class="tabs">
         <view class="tab" :class="{ active: activeTab === 'debt' }" @click="activeTab = 'debt'">{{ text.debtOrders }}</view>
         <view class="tab" :class="{ active: activeTab === 'all' }" @click="activeTab = 'all'">
           {{ text.allBills }}
@@ -59,8 +73,13 @@
               <view class="order-no">{{ text.orderNo }} {{ order.orderNo }}</view>
             </view>
             <view class="order-side">
-              <view class="order-amount" :class="order.status">¥{{ amountText(order, 'totalAmount', 'amount') }}</view>
-              <view class="order-status" :class="order.status">{{ statusText(order.status) }}</view>
+              <view class="order-state">
+                <view class="order-amount" :class="order.status">¥{{ amountText(order, 'totalAmount', 'amount') }}</view>
+                <view class="order-status" :class="order.status">{{ statusText(order.status) }}</view>
+              </view>
+              <button v-if="!isSharedView && order.status === 'unpaid'" class="pay-action" :disabled="payingOrderId === order.id" @click="confirmPayOrder(order)">
+                {{ payingOrderId === order.id ? text.paying : text.payOff }}
+              </button>
             </view>
           </view>
 
@@ -71,6 +90,17 @@
             </view>
             <text class="item-total" :class="order.status">¥{{ amountText(item, 'subtotal', 'totalAmount') }}</text>
           </view>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="!isSharedView && repayDialogVisible" class="modal-mask" @click="closePartialPayment">
+      <view class="repay-dialog" @click.stop>
+        <view class="repay-title">{{ text.partialPayButton }}</view>
+        <input v-model="repayAmount" class="repay-input" type="digit" :placeholder="text.partialPaymentPlaceholder" focus />
+        <view class="repay-actions">
+          <button class="repay-cancel" @click="closePartialPayment">{{ text.cancel }}</button>
+          <button class="repay-confirm" @click="submitPartialPayment">{{ text.confirm }}</button>
         </view>
       </view>
     </view>
@@ -86,11 +116,26 @@ const zh = {
   shopName: '\u4e1c\u6210\u679c\u4e1a',
   customerBill: '\u5ba2\u6237\u6b20\u8d26\u5355',
   debtAmount: '\u8d4a\u6b20\u91d1\u989d',
+  totalDebt: '总欠账：',
+  partialPayment: '部分还款：',
+  unpaidAmount: '未付：',
+  partialPayButton: '部分还款',
+  partialPaymentPlaceholder: '请输入部分还款金额',
+  partialPaymentSuccess: '已记录还款',
+  invalidAmount: '请输入正确金额',
+  cancel: '取消',
+  confirm: '确认',
+  payOff: '付清',
+  paying: '付清中',
+  payOffSuccess: '已付清',
+  payConfirmTitle: '确认付清',
   orderUnit: '\u5355',
   reconcile: '\u8d4a\u8fd8\u5bf9\u8d26 >',
   shareBill: '\u5206\u4eab\u8d26\u5355 >',
   sharePreparing: '\u51c6\u5907\u5206\u4eab...',
   printBill: '\u6253\u5370\u8d26\u5355',
+  confirmPrintTitle: '确认打印账单？',
+  confirmPrintContent: '确认后会发送客户欠账单到打印机。',
   printing: '\u6253\u5370\u4e2d',
   printSuccess: '\u5df2\u53d1\u9001\u6253\u5370',
   debtOrders: '\u8d4a\u6b20\u8ba2\u5355',
@@ -113,6 +158,9 @@ export default {
       debt: null,
       activeTab: 'debt',
       printing: false,
+      payingOrderId: null,
+      repayDialogVisible: false,
+      repayAmount: '',
       loading: true,
       error: '',
       preparingShare: false
@@ -203,6 +251,57 @@ export default {
       }
       return quantity
     },
+    openPartialPayment() {
+      this.repayAmount = this.amountText(this.debt, 'partialPayment')
+      this.repayDialogVisible = true
+    },
+    closePartialPayment() {
+      this.repayDialogVisible = false
+      this.repayAmount = ''
+    },
+    async submitPartialPayment() {
+      const amount = Number(this.repayAmount)
+      if (!Number.isFinite(amount) || amount < 0) {
+        uni.showToast({ title: this.text.invalidAmount, icon: 'none' })
+        return
+      }
+      await request({
+        url: `/api/customers/${this.customerId}/partial-payment`,
+        method: 'PATCH',
+        data: { amount }
+      })
+      uni.showToast({ title: this.text.partialPaymentSuccess, icon: 'success' })
+      this.closePartialPayment()
+      this.loadDebt()
+    },
+    confirmPayOrder(order) {
+      const customerName = this.debt?.customer?.name || order.customerName || ''
+      uni.showModal({
+        title: this.text.payConfirmTitle,
+        content: `${customerName} ${this.dateText(order.createdAt)}\n¥${this.amountText(order, 'totalAmount', 'amount')}\n确认付清？`,
+        success: async (res) => {
+          if (!res.confirm) return
+          this.payingOrderId = order.id
+          try {
+            await request({ url: `/api/orders/${order.id}/pay`, method: 'PATCH' })
+            uni.showToast({ title: this.text.payOffSuccess, icon: 'success' })
+            await this.loadDebt()
+          } finally {
+            this.payingOrderId = null
+          }
+        }
+      })
+    },
+    confirmPrintDebtBill() {
+      if (!this.customerId || this.printing) return
+      uni.showModal({
+        title: this.text.confirmPrintTitle,
+        content: this.text.confirmPrintContent,
+        success: (res) => {
+          if (res.confirm) this.printDebtBill()
+        }
+      })
+    },
     async printDebtBill() {
       if (!this.customerId || this.printing) return
       this.printing = true
@@ -235,6 +334,8 @@ export default {
 .shop-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
   height: 108rpx;
   padding: 0 24rpx;
   border-bottom: 1rpx solid #e5e9e7;
@@ -242,8 +343,36 @@ export default {
 }
 
 .shop-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
   font-size: 34rpx;
   font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop-actions {
+  flex-shrink: 0;
+}
+
+.shop-print-button {
+  height: 62rpx;
+  min-height: 62rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border-radius: 12rpx;
+  background: #e8f6ed;
+  color: #166b4e;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 62rpx;
+  box-shadow: 0 6rpx 14rpx rgba(25, 55, 44, 0.08);
+}
+
+.shop-print-button::after {
+  display: none;
+  border: 0;
 }
 
 .customer-line {
@@ -305,58 +434,98 @@ export default {
 .summary-card {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: stretch;
+  gap: 20rpx;
   margin: 18rpx 18rpx 16rpx;
-  min-height: 220rpx;
-  padding: 30rpx 28rpx;
+  min-height: 260rpx;
+  padding: 28rpx;
+  border: 1rpx solid #dfe8d8;
   border-radius: 18rpx;
-  background: linear-gradient(135deg, #16a66c 0%, #0f7d55 100%);
-  color: #ffffff;
-  box-shadow: 0 12rpx 28rpx rgba(22, 148, 95, 0.22);
+  background: linear-gradient(135deg, #ffffff 0%, #f2fbf4 100%);
+  color: #17362f;
+  box-shadow: 0 12rpx 28rpx rgba(22, 148, 95, 0.14);
 }
 
-.summary-label {
-  margin-bottom: 36rpx;
+.summary-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14rpx;
+}
+
+.summary-title {
+  margin-bottom: 4rpx;
+  color: #166b4e;
   font-size: 28rpx;
-  font-weight: 800;
-}
-
-.summary-money {
-  font-size: 56rpx;
   font-weight: 900;
 }
 
-.summary-money text {
-  margin-left: 8rpx;
-  font-size: 30rpx;
+.summary-row {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.summary-label {
+  flex-shrink: 0;
+  color: #4d565c;
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.summary-value {
+  overflow: hidden;
+  color: #17362f;
+  font-size: 31rpx;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-unpaid {
+  overflow: hidden;
+  color: #d64b3f;
+  font-size: 54rpx;
+  font-weight: 900;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .summary-action {
   display: block;
-  min-width: 174rpx;
-  height: 86rpx;
+  min-width: 190rpx;
+  height: 88rpx;
   margin: 0;
   padding: 0 18rpx;
   border: 0;
   border-radius: 12rpx;
   background: #fff6cf;
-  box-shadow: 0 6rpx 14rpx rgba(0, 0, 0, 0.14);
+  box-shadow: 0 6rpx 14rpx rgba(25, 55, 44, 0.12);
   color: #17362f;
-  font-size: 28rpx;
+  font-size: 29rpx;
   font-weight: 900;
-  line-height: 86rpx;
+  line-height: 88rpx;
   text-align: center;
 }
 
 .summary-actions {
   display: flex;
   flex-direction: column;
-  gap: 14rpx;
+  justify-content: center;
+  gap: 34rpx;
 }
 
-.print-action {
-  background: #e8f6ed;
-  color: #166b4e;
+.repay-action {
+  background: #16945f;
+  color: #ffffff;
+}
+
+.share-action {
+  background: #fff6cf;
+  color: #17362f;
 }
 
 .summary-action::after {
@@ -464,7 +633,16 @@ export default {
 }
 
 .order-side {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 14rpx;
   text-align: right;
+}
+
+.order-state {
+  min-width: 0;
 }
 
 .order-status {
@@ -480,6 +658,99 @@ export default {
 
 .order-status.cancelled {
   color: #e85d4f;
+}
+
+.pay-action {
+  width: 104rpx;
+  height: 52rpx;
+  min-height: 52rpx;
+  margin: 6rpx 0 0;
+  padding: 0;
+  border-radius: 12rpx;
+  background: #16945f;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 52rpx;
+}
+
+.pay-action::after {
+  display: none;
+  border: 0;
+}
+
+.modal-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  background: rgba(18, 33, 28, 0.42);
+}
+
+.repay-dialog {
+  width: 100%;
+  max-width: 560rpx;
+  padding: 28rpx;
+  border-radius: 18rpx;
+  background: #ffffff;
+  box-shadow: 0 18rpx 42rpx rgba(18, 33, 28, 0.24);
+}
+
+.repay-title {
+  color: #17362f;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.repay-input {
+  height: 78rpx;
+  margin-top: 22rpx;
+  padding: 0 18rpx;
+  border: 2rpx solid #c9dcc9;
+  border-radius: 12rpx;
+  background: #f7fbf3;
+  color: #17362f;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.repay-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 24rpx;
+}
+
+.repay-cancel,
+.repay-confirm {
+  height: 70rpx;
+  margin: 0;
+  border-radius: 12rpx;
+  font-size: 27rpx;
+  font-weight: 900;
+  line-height: 70rpx;
+}
+
+.repay-cancel {
+  background: #edf2eb;
+  color: #4d565c;
+}
+
+.repay-confirm {
+  background: #16945f;
+  color: #ffffff;
+}
+
+.repay-cancel::after,
+.repay-confirm::after {
+  display: none;
+  border: 0;
 }
 
 .item-row {

@@ -9,7 +9,6 @@
           <view class="date-change">{{ text.changeDate }}</view>
         </picker>
       </view>
-
       <view class="search-wrap">
         <input
           v-model="customer"
@@ -30,6 +29,15 @@
             {{ item.name }}
           </view>
         </scroll-view>
+      </view>
+      <view v-if="dateMode === 'range'" class="range-wrap">
+        <picker mode="date" :value="startDate" @change="changeStartDate">
+          <view class="date-change range-date">{{ startDate }}</view>
+        </picker>
+        <text class="range-sep">{{ text.toDate }}</text>
+        <picker mode="date" :value="endDate" @change="changeEndDate">
+          <view class="date-change range-date">{{ endDate }}</view>
+        </picker>
       </view>
     </view>
 
@@ -94,6 +102,8 @@ import { dateText, money, statusText, timeOnlyText, todayText } from '../../util
 const zh = {
   allTime: '\u5168\u90e8\u65f6\u95f4',
   today: '\u4eca\u5929',
+  dateRange: '日期范围',
+  toDate: '至',
   currency: '\uffe5',
   prevPage: '\u4e0a\u4e00\u9875',
   nextPage: '\u4e0b\u4e00\u9875',
@@ -126,6 +136,8 @@ export default {
     return {
       text: zh,
       date: today,
+      startDate: today,
+      endDate: today,
       dateMode: 'day',
       customer: '',
       selectedCustomerId: null,
@@ -151,14 +163,18 @@ export default {
     dateOptions() {
       return [
         { label: this.text.today, value: 'day' },
+        { label: this.text.dateRange, value: 'range' },
         { label: this.text.allTime, value: 'all' }
       ]
     },
     dateIndex() {
-      return this.dateMode === 'all' ? 1 : 0
+      const index = this.dateOptions.findIndex(item => item.value === this.dateMode)
+      return index < 0 ? 0 : index
     },
     dateLabel() {
-      return this.dateMode === 'all' ? this.text.allTime : this.date
+      if (this.dateMode === 'all') return this.text.allTime
+      if (this.dateMode === 'range') return this.text.dateRange
+      return this.date
     },
     emptyText() {
       return this.dateMode === 'all' ? this.text.noOrder : this.text.noTodayOrder
@@ -204,6 +220,20 @@ export default {
       this.pagination.page = 1
       this.loadOrders()
     },
+    changeStartDate(event) {
+      this.startDate = event.detail.value
+      if (this.startDate > this.endDate) this.endDate = this.startDate
+      this.dateMode = 'range'
+      this.pagination.page = 1
+      this.loadOrders()
+    },
+    changeEndDate(event) {
+      this.endDate = event.detail.value
+      if (this.endDate < this.startDate) this.startDate = this.endDate
+      this.dateMode = 'range'
+      this.pagination.page = 1
+      this.loadOrders()
+    },
     onCustomerInput() {
       this.selectedCustomerId = null
       this.pagination.page = 1
@@ -231,12 +261,13 @@ export default {
       this.loadOrders()
     },
     async loadOrders() {
-      const dateParam = this.dateMode === 'all' ? 'all' : this.date
+      const dateParam = this.dateMode === 'all' ? 'all' : (this.dateMode === 'range' ? 'range' : this.date)
+      const rangeParams = this.dateMode === 'range' ? `&mode=range&startDate=${encodeURIComponent(this.startDate)}&endDate=${encodeURIComponent(this.endDate)}` : ''
       this.loading = true
       this.error = ''
       try {
         const result = await request({
-          url: `/api/orders?date=${encodeURIComponent(dateParam)}&customer=${encodeURIComponent(this.customer.trim())}&customerId=${this.selectedCustomerId || ''}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
+          url: `/api/orders?date=${encodeURIComponent(dateParam)}${rangeParams}&customer=${encodeURIComponent(this.customer.trim())}&customerId=${this.selectedCustomerId || ''}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
         })
         const list = Array.isArray(result) ? result : (result.items || [])
         const visibleList = Array.isArray(list) ? list.filter(order => order.status !== 'cancelled') : []
@@ -345,6 +376,25 @@ export default {
   gap: 8rpx;
   align-items: center;
   min-width: 0;
+}
+
+.range-wrap {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38rpx minmax(0, 1fr);
+  gap: 8rpx;
+  align-items: center;
+}
+
+.range-date {
+  width: auto;
+}
+
+.range-sep {
+  color: #718078;
+  font-size: 24rpx;
+  font-weight: 900;
+  text-align: center;
 }
 
 .picker-input {

@@ -23,7 +23,7 @@
 </template>
 
 <script>
-import { request, setSession } from '../../utils/request'
+import { clearSession, getToken, request, setSession } from '../../utils/request'
 
 const zh = {
   brand: '\u4e1c\u6210\u679c\u4e1a',
@@ -45,7 +45,30 @@ export default {
       username: '',
       password: '',
       loading: false,
-      loginError: ''
+      loginError: '',
+      checkingSession: false
+    }
+  },
+  async onShow() {
+    if (!getToken() || this.checkingSession) return
+    this.checkingSession = true
+    // APP 冷启动可能先显示登录页；有本地 token 时先进入业务页，避免网络校验期间误以为需要重新登录。
+    // 服务端会在后续业务接口返回 401 时统一要求重新登录。
+    // #ifdef APP-PLUS
+    uni.reLaunch({ url: '/pages/order/index' })
+    this.checkingSession = false
+    return
+    // #endif
+
+    try {
+      const data = await request({ url: '/api/auth/me', showErrorToast: false })
+      if (data.staff) {
+        uni.reLaunch({ url: '/pages/order/index' })
+      } else {
+        clearSession()
+      }
+    } finally {
+      this.checkingSession = false
     }
   },
   methods: {

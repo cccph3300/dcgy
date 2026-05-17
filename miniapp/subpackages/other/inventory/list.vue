@@ -1,9 +1,9 @@
 <template>
   <view class="page inventory-page">
     <view class="soft-card toolbar">
-      <input v-model="keyword" class="input" placeholder="搜索货物" />
+      <input v-model="keyword" class="input" placeholder="搜索货物" @input="reloadFirstPage" />
       <button class="soft-button primary" @click="startCreate">货物入库</button>
-      <button class="soft-button warn-button clean-button" @click="previewZeroStock">清理库存</button>
+      <button class="soft-button import-button" @click="startImport">导入货物</button>
     </view>
 
     <view v-if="zeroPanel" class="soft-card zero-panel">
@@ -36,8 +36,41 @@
       </view>
     </view>
 
+    <view v-if="importing" class="soft-card import-panel">
+      <view class="section-title">导入货物</view>
+      <view class="import-tip">按整批金额自动平均成本和佣金，保存前可再填写售卖价。</view>
+      <view class="form-grid">
+        <input v-model.trim="importForm.name" class="input" placeholder="水果名称" />
+        <picker :value="importUnitIndex" :range="unitOptions" range-key="label" @change="changeImportUnit">
+          <view class="input picker-input">{{ unitOptions[importUnitIndex].label }}</view>
+        </picker>
+        <input v-model="importForm.pieces" class="input" type="digit" placeholder="件数" />
+        <input v-if="importForm.unitType === 'weight'" v-model="importForm.weight" class="input" type="digit" placeholder="总重量/斤" />
+        <input v-model="importForm.totalAmount" class="input" type="digit" placeholder="总金额" />
+        <input v-model="importForm.totalCommission" class="input" type="digit" placeholder="总佣金 可空" />
+        <input v-model="importForm.salePrice" class="input" type="digit" placeholder="售卖价" />
+      </view>
+      <view class="calc-card">
+        <view>
+          <text>自动成本</text>
+          <view>¥{{ money(importCostPrice) }}{{ importForm.unitType === 'weight' ? '/斤' : '/件' }}</view>
+        </view>
+        <view>
+          <text>每件佣金</text>
+          <view>¥{{ money(importCommission) }}</view>
+        </view>
+      </view>
+      <view class="button-row">
+        <button class="soft-button" @click="importing = false">取消</button>
+        <button class="soft-button primary" @click="saveImportGoods">导入</button>
+      </view>
+    </view>
+
     <view class="soft-card inventory-card">
-      <view class="section-title">库存列表</view>
+      <view class="inventory-head">
+        <view class="section-title">库存列表</view>
+        <button class="soft-button warn-button clean-button" @click="previewZeroStock">清理库存</button>
+      </view>
       <scroll-view v-if="filteredGoods.length" class="inventory-scroll" scroll-y :show-scrollbar="true" enhanced>
         <view v-for="goods in filteredGoods" :key="goods.id" class="inventory-row">
           <view class="inventory-main">
@@ -51,6 +84,11 @@
         </view>
       </scroll-view>
       <view v-if="!filteredGoods.length" class="empty">没有库存</view>
+      <view class="pager">
+        <button class="pager-button" :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
+        <text>{{ page }} / {{ totalPages }}</text>
+        <button class="pager-button" :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</button>
+      </view>
     </view>
   </view>
 </template>
@@ -69,15 +107,31 @@ const emptyForm = () => ({
   defaultCommission: ''
 })
 
+const emptyImportForm = () => ({
+  name: '',
+  unitType: 'weight',
+  pieces: '',
+  weight: '',
+  totalAmount: '',
+  totalCommission: '',
+  salePrice: ''
+})
+
 export default {
   data() {
     return {
       keyword: '',
       goodsList: [],
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+      searchTimer: null,
       zeroPanel: false,
       zeroGoods: [],
       editing: false,
+      importing: false,
       form: emptyForm(),
+      importForm: emptyImportForm(),
       unitOptions: [
         { label: '按重量计价', value: 'weight' },
         { label: '按件数计价', value: 'qty' }
@@ -88,20 +142,64 @@ export default {
     unitIndex() {
       return this.form.unitType === 'qty' ? 1 : 0
     },
+    importUnitIndex() {
+      return this.importForm.unitType === 'qty' ? 1 : 0
+    },
+    importCommission() {
+      const pieces = Number(this.importForm.pieces || 0)
+      const totalCommission = Number(this.importForm.totalCommission || 0)
+      if (pieces <= 0 || totalCommission <= 0) return 0
+      return Number((totalCommission / pieces).toFixed(2))
+    },
+    importCostPrice() {
+      const totalAmount = Number(this.importForm.totalAmount || 0)
+      const totalCommission = Number(this.importForm.totalCommission || 0)
+      const costTotal = Math.max(totalAmount - totalCommission, 0)
+      if (this.importForm.unitType === 'weight') {
+        const weight = Number(this.importForm.weight || 0)
+        return weight > 0 ? Number((costTotal / weight).toFixed(2)) : 0
+      }
+      const pieces = Number(this.importForm.pieces || 0)
+      return pieces > 0 ? Number((costTotal / pieces).toFixed(2)) : 0
+    },
     filteredGoods() {
-      const text = this.keyword.trim()
-      if (!text) return this.goodsList
-      return this.goodsList.filter(item => item.name.includes(text))
+      return this.goodsList
     }
   },
   onShow() {
     if (requireLogin()) this.loadGoods()
   },
+  onUnload() {
+    if (this.searchTimer) clearTimeout(this.searchTimer)
+  },
   methods: {
     money,
     numberText,
+    reloadFirstPage() {
+      if (this.searchTimer) clearTimeout(this.searchTimer)
+      this.searchTimer = setTimeout(() => {
+        this.page = 1
+        this.loadGoods()
+      }, 220)
+    },
+    changePage(page) {
+      this.page = page
+      this.loadGoods()
+    },
     async loadGoods() {
-      this.goodsList = await request({ url: '/api/goods' })
+      const params = [
+        `page=${this.page}`,
+        `pageSize=${this.pageSize}`
+      ]
+      const keyword = this.keyword.trim()
+      if (keyword) params.push(`q=${encodeURIComponent(keyword)}`)
+      const result = await request({ url: `/api/goods?${params.join('&')}` })
+      this.goodsList = result.items || []
+      this.totalPages = result.totalPages || 1
+      if (this.page > this.totalPages) {
+        this.page = this.totalPages
+        await this.loadGoods()
+      }
     },
     async previewZeroStock() {
       this.zeroGoods = await request({ url: '/api/goods/zero-stock' })
@@ -124,9 +222,19 @@ export default {
     changeUnit(event) {
       this.form.unitType = this.unitOptions[Number(event.detail.value)].value
     },
+    changeImportUnit(event) {
+      this.importForm.unitType = this.unitOptions[Number(event.detail.value)].value
+      if (this.importForm.unitType === 'qty') this.importForm.weight = ''
+    },
     startCreate() {
       this.form = emptyForm()
       this.editing = true
+      this.importing = false
+    },
+    startImport() {
+      this.importForm = emptyImportForm()
+      this.importing = true
+      this.editing = false
     },
     startEdit(goods) {
       this.form = {
@@ -139,6 +247,53 @@ export default {
         defaultCommission: goods.defaultCommission
       }
       this.editing = true
+      this.importing = false
+    },
+    async saveImportGoods() {
+      const name = this.importForm.name.trim()
+      const pieces = Number(this.importForm.pieces || 0)
+      const totalAmount = Number(this.importForm.totalAmount || 0)
+      const salePrice = Number(this.importForm.salePrice || 0)
+      if (!name) {
+        uni.showToast({ title: '请填写水果名称', icon: 'none' })
+        return
+      }
+      if (pieces <= 0) {
+        uni.showToast({ title: '请填写件数', icon: 'none' })
+        return
+      }
+      if (this.importForm.unitType === 'weight' && Number(this.importForm.weight || 0) <= 0) {
+        uni.showToast({ title: '请填写总重量', icon: 'none' })
+        return
+      }
+      if (totalAmount <= 0) {
+        uni.showToast({ title: '请填写总金额', icon: 'none' })
+        return
+      }
+      if (Number(this.importForm.totalCommission || 0) > totalAmount) {
+        uni.showToast({ title: '总佣金不能大于总金额', icon: 'none' })
+        return
+      }
+      if (salePrice <= 0) {
+        uni.showToast({ title: '请填写售卖价', icon: 'none' })
+        return
+      }
+      await request({
+        url: '/api/goods',
+        method: 'POST',
+        data: {
+          name,
+          unitType: this.importForm.unitType,
+          stock: pieces,
+          costPrice: this.importCostPrice,
+          salePrice,
+          defaultCommission: this.importCommission
+        }
+      })
+      uni.showToast({ title: '已导入', icon: 'success' })
+      this.importing = false
+      this.page = 1
+      await this.loadGoods()
     },
     async saveGoods() {
       if (!this.form.name.trim()) {
@@ -208,6 +363,11 @@ export default {
   color: #ffffff;
 }
 
+.import-button {
+  background: #fff6cf;
+  color: #17362f;
+}
+
 .zero-panel {
   border-color: #ffd8d1;
   background: #fffdf9;
@@ -231,6 +391,45 @@ export default {
   margin-bottom: 16rpx;
 }
 
+.import-panel {
+  border-color: #f3dfac;
+  background: #fffdf6;
+}
+
+.import-tip {
+  margin: 8rpx 0 16rpx;
+  color: #718078;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.calc-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 4rpx;
+}
+
+.calc-card > view {
+  min-height: 96rpx;
+  padding: 16rpx;
+  border-radius: 16rpx;
+  background: #e8f6ed;
+}
+
+.calc-card text {
+  color: #718078;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.calc-card view view {
+  margin-top: 8rpx;
+  color: #17362f;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
 .button-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -242,8 +441,41 @@ export default {
   margin-bottom: 0;
 }
 
+.inventory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.inventory-head .section-title {
+  margin-bottom: 0;
+}
+
 .inventory-scroll {
   max-height: calc(100vh - 260rpx);
+}
+
+.pager {
+  display: grid;
+  grid-template-columns: 150rpx minmax(0, 1fr) 150rpx;
+  gap: 16rpx;
+  align-items: center;
+  padding: 12rpx 0 0;
+  color: #17362f;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pager-button {
+  height: 58rpx;
+  min-height: 58rpx;
+  border-radius: 16rpx;
+  background: #e8f6ed;
+  color: #166b4e;
+  font-size: 24rpx;
+  font-weight: 900;
 }
 
 .inventory-row {

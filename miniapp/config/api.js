@@ -15,6 +15,11 @@ function resolveApiBase() {
   }
   // #endif
 
+  // APP 安装到手机后不能访问 localhost，固定走服务器地址。
+  // #ifdef APP-PLUS
+  return SERVER_API_BASE
+  // #endif
+
   // #ifdef MP-WEIXIN
   const envVersion = getMiniProgramEnvVersion()
   if (envVersion === 'release' || envVersion === 'trial') {
@@ -65,3 +70,7 @@ export const OCR_ANYSERVICE_NAME = 'dcocr'
 // 本地草稿缓存 Key 统一放这里，避免页面里散落硬编码字符串。
 export const DELIVERY_OCR_DRAFT_KEY = 'delivery_ocr_draft'
 export const DELIVERY_CREATE_DRAFT_KEY = 'delivery_create_draft'
+
+// 零售商品公开页店铺信息，后续改店名/地址只需要改这里。
+export const RETAIL_STORE_NAME = '东成果业'
+export const RETAIL_STORE_ADDRESS = '莞香水果市场A1区112号'

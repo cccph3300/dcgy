@@ -114,6 +114,12 @@
           }
         },
         {
+          "path": "customers/index",
+          "style": {
+            "navigationBarTitleText": "其他/客户列表"
+          }
+        },
+        {
           "path": "prints/index",
           "style": {
             "navigationBarTitleText": "其他/打印记录"
@@ -123,6 +129,18 @@
           "path": "prints/detail",
           "style": {
             "navigationBarTitleText": "其他/打印详情"
+          }
+        },
+        {
+          "path": "orders/fix",
+          "style": {
+            "navigationBarTitleText": "其他/订单改单"
+          }
+        },
+        {
+          "path": "orders/add",
+          "style": {
+            "navigationBarTitleText": "其他/漏单加单"
           }
         }
       ]
@@ -164,6 +182,59 @@
           "path": "ocr",
           "style": {
             "navigationBarTitleText": "超市配送/文本识别送货单"
+          }
+        }
+      ]
+    },
+    {
+      "root": "subpackages/retail",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationBarTitleText": "零售模块"
+          }
+        },
+        {
+          "path": "upload",
+          "style": {
+            "navigationBarTitleText": "零售模块/商品上传"
+          }
+        },
+        {
+          "path": "products",
+          "style": {
+            "navigationBarTitleText": "零售模块/商品列表"
+          }
+        },
+        {
+          "path": "shop",
+          "style": {
+            "navigationBarTitleText": "东成果业"
+          }
+        },
+        {
+          "path": "order",
+          "style": {
+            "navigationBarTitleText": "零售模块/零售点单"
+          }
+        },
+        {
+          "path": "records",
+          "style": {
+            "navigationBarTitleText": "零售模块/零售记录"
+          }
+        },
+        {
+          "path": "profit",
+          "style": {
+            "navigationBarTitleText": "零售模块/零售利润"
+          }
+        },
+        {
+          "path": "detail",
+          "style": {
+            "navigationBarTitleText": "零售模块/零售记录/详情"
           }
         }
       ]

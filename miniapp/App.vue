@@ -1,5 +1,6 @@
 <script>
 import { TCB_ENV_ID } from './config/api'
+import { getToken } from './utils/request'
 
 export default {
   onLaunch() {
@@ -11,6 +12,16 @@ export default {
         env: TCB_ENV_ID,
         traceUser: true
       })
+    }
+    // #endif
+
+    // APP 冷启动默认先进登录页；本地已有 token 时先进入业务页。
+    // 如果 token 已过期，后续接口返回 401 会统一清理登录态并回到登录页。
+    // #ifdef APP-PLUS
+    if (getToken()) {
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/order/index' })
+      }, 0)
     }
     // #endif
   }

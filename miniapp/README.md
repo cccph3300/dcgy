@@ -41,4 +41,4 @@
 	aoD2ji6c1Ai5ODa5zvmAUOeY9a
 
 	证书文件：
-	E:\project\dcgy_keys\dcgy-release.keystore
+	E:/project/dcgy/dcgy_keys/dcgy-release.keystore

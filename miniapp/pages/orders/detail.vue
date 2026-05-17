@@ -48,9 +48,38 @@
 
       <view v-else class="soft-card edit-panel">
         <view class="section-title">{{ text.editOrder }}</view>
-        <view class="edit-field">
+        <view class="edit-field customer-edit-field">
           <text>{{ text.customer }}</text>
-          <input v-model="editForm.customerName" class="input edit-input" />
+          <input
+            v-model="editForm.customerName"
+            class="input edit-input"
+            @input="onEditCustomerInput"
+            @focus="searchEditCustomers"
+          />
+          <scroll-view v-if="editCustomerSuggestions.length" class="edit-suggest-float" scroll-y enhanced>
+            <view
+              v-for="customer in editCustomerSuggestions"
+              :key="customer.id"
+              class="edit-suggest-item"
+              @click="selectEditCustomer(customer)"
+            >
+              {{ customer.name }}
+            </view>
+          </scroll-view>
+        </view>
+        <view v-if="missedMode" class="edit-date-grid">
+          <view class="edit-field">
+            <text>{{ text.orderDate }}</text>
+            <picker mode="date" :value="editForm.createdDate" @change="changeEditDate">
+              <view class="input edit-input picker-value">{{ editForm.createdDate }}</view>
+            </picker>
+          </view>
+          <view class="edit-field">
+            <text>{{ text.orderTime }}</text>
+            <picker mode="time" :value="editForm.createdTime" @change="changeEditTime">
+              <view class="input edit-input picker-value">{{ editForm.createdTime }}</view>
+            </picker>
+          </view>
         </view>
 
         <view class="add-section" :class="{ open: addingGoods }">
@@ -157,6 +186,8 @@ const zh = {
   delete: '\u5220\u9664',
   edit: '\u7f16\u8f91',
   editOrder: '\u7f16\u8f91\u8ba2\u5355',
+  orderDate: '日期',
+  orderTime: '时间',
   cancelEdit: '\u53d6\u6d88',
   saveEdit: '\u4fdd\u5b58\u4fee\u6539',
   saving: '\u4fdd\u5b58\u4e2d',
@@ -183,14 +214,19 @@ export default {
       text: zh,
       id: '',
       profitMode: false,
+      missedMode: false,
       order: null,
       shareToken: '',
       editing: false,
       saving: false,
       editForm: {
         customerName: '',
+        createdDate: '',
+        createdTime: '',
         items: []
       },
+      editCustomerSuggestions: [],
+      editCustomerTimer: null,
       goodsList: [],
       goodsKeyword: '',
       addingGoods: false,
@@ -233,7 +269,7 @@ export default {
         : Number((quantity * price + commission).toFixed(2))
     },
     canEditOrder() {
-      return this.order && (this.order.status === 'unpaid' || this.order.status === 'cancelled')
+      return this.order && (this.missedMode || this.order.status === 'unpaid' || this.order.status === 'cancelled')
     },
     orderProfit() {
       if (!this.order) return 0
@@ -244,9 +280,13 @@ export default {
   onLoad(query) {
     this.id = query.id
     this.profitMode = query.profit === '1'
+    this.missedMode = query.missed === '1'
   },
   onShow() {
     if (requireLogin() && !this.editing) this.loadOrder()
+  },
+  onUnload() {
+    if (this.editCustomerTimer) clearTimeout(this.editCustomerTimer)
   },
   async onShareAppMessage() {
     const token = await this.ensureShareToken()
@@ -298,6 +338,22 @@ export default {
     async loadGoods() {
       this.goodsList = await request({ url: '/api/goods' })
     },
+    onEditCustomerInput() {
+      if (this.editCustomerTimer) clearTimeout(this.editCustomerTimer)
+      this.editCustomerTimer = setTimeout(() => this.searchEditCustomers(), 250)
+    },
+    async searchEditCustomers() {
+      const keyword = this.editForm.customerName.trim()
+      if (!keyword) {
+        this.editCustomerSuggestions = []
+        return
+      }
+      this.editCustomerSuggestions = await request({ url: `/api/customers/search?q=${encodeURIComponent(keyword)}` })
+    },
+    selectEditCustomer(customer) {
+      this.editForm.customerName = customer.name
+      this.editCustomerSuggestions = []
+    },
     itemText(item) {
       const quantity = Number(item.quantity || 0)
       const commission = Number(item.commission || 0)
@@ -320,6 +376,8 @@ export default {
       if (!this.order) return
       this.editForm = {
         customerName: this.order.customerName || '',
+        createdDate: this.dateInputText(this.order.createdAt),
+        createdTime: this.timeInputText(this.order.createdAt),
         items: (this.order.items || []).map(item => ({
           id: item.id,
           goodsId: item.goodsId,
@@ -356,6 +414,7 @@ export default {
       this.addingGoods = false
       this.activeGoods = null
       this.goodsKeyword = ''
+      this.editCustomerSuggestions = []
       this.resetEditForm()
     },
     updateEditItem(item) {
@@ -366,6 +425,25 @@ export default {
       item.subtotal = item.unitType === 'weight' && weight > 0
         ? Number((weight * price + quantity * commission).toFixed(2))
         : Number((quantity * price + commission).toFixed(2))
+    },
+    dateInputText(value) {
+      const date = new Date(value)
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    },
+    timeInputText(value) {
+      const date = new Date(value)
+      const hour = String(date.getHours()).padStart(2, '0')
+      const minute = String(date.getMinutes()).padStart(2, '0')
+      return `${hour}:${minute}`
+    },
+    changeEditDate(event) {
+      this.editForm.createdDate = event.detail.value
+    },
+    changeEditTime(event) {
+      this.editForm.createdTime = event.detail.value
     },
     removeEditItem(index) {
       this.editForm.items.splice(index, 1)
@@ -443,6 +521,10 @@ export default {
     buildEditPayload() {
       return {
         customerName: this.editForm.customerName.trim(),
+        ...(this.missedMode ? {
+          createdDate: this.editForm.createdDate,
+          createdTime: this.editForm.createdTime
+        } : {}),
         items: this.editForm.items.map(item => ({
           id: item.id,
           goodsId: item.goodsId,
@@ -467,6 +549,7 @@ export default {
         })
         uni.showToast({ title: '已保存', icon: 'success' })
         this.editing = false
+        this.editCustomerSuggestions = []
         await this.loadOrder()
       } finally {
         this.saving = false
@@ -722,6 +805,44 @@ export default {
   color: #243640;
   font-size: 24rpx;
   font-weight: 900;
+}
+
+.customer-edit-field {
+  position: relative;
+}
+
+.edit-suggest-float {
+  position: absolute;
+  left: 78rpx;
+  right: 0;
+  top: 70rpx;
+  z-index: 50;
+  max-height: 176rpx;
+  border: 2rpx solid #c9dcc9;
+  border-radius: 14rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 28rpx rgba(24, 37, 46, 0.14);
+  overflow: hidden;
+}
+
+.edit-suggest-item {
+  min-height: 56rpx;
+  padding: 14rpx 18rpx;
+  border-bottom: 1rpx solid #eef2ee;
+  color: #17362f;
+  font-weight: 900;
+}
+
+.edit-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.picker-value {
+  display: flex;
+  align-items: center;
 }
 
 .edit-input {

@@ -19,6 +19,7 @@
         "distribute" : {
             "android" : {
                 "packagename" : "com.dcgy.order",
+                "usesCleartextTraffic" : true,
                 "permissions" : [
                     "<uses-permission android:name=\"android.permission.INTERNET\"/>",
                     "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
