@@ -3,6 +3,7 @@ import { prisma } from '../../utils/prisma'
 import { requireStaff } from '../../utils/auth'
 import { buildOrderItems, createOrderNo, deductStock, mapOrderItem } from '../../utils/orders'
 import { recalculateCustomerDebt } from '../../utils/customer-payments'
+import { parseChinaDateTime } from '../../utils/date-query'
 
 const DEFAULT_CUSTOMER_NAME = '客户'
 
@@ -51,6 +52,7 @@ export default defineEventHandler(async (event) => {
         commission,
         totalAmount,
         profitAmount,
+        ...(body?.createdDate ? { createdAt: parseChinaDateTime(body.createdDate, body.createdTime || '00:00') } : {}),
         items: { create: items.map(mapOrderItem) }
       },
       include: { items: true }

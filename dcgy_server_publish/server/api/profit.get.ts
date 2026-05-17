@@ -1,41 +1,8 @@
 import { getQuery } from 'h3'
 import { requireStaff } from '../utils/auth'
+import { dateWhereFromQuery } from '../utils/date-query'
 import { formatDecimal } from '../utils/number'
 import { prisma } from '../utils/prisma'
-
-function chinaDayRange(date: string) {
-  const [year, month, day] = date.split('-').map(Number)
-  return {
-    start: new Date(Date.UTC(year, month - 1, day, -8, 0, 0, 0)),
-    end: new Date(Date.UTC(year, month - 1, day + 1, -8, 0, 0, -1))
-  }
-}
-
-function chinaMonthRange(date: string) {
-  const [year, month] = date.split('-').map(Number)
-  return {
-    start: new Date(Date.UTC(year, month - 1, 1, -8, 0, 0, 0)),
-    end: new Date(Date.UTC(year, month, 1, -8, 0, 0, -1))
-  }
-}
-
-function whereByDate(mode: string, day: string, startDate: string, endDate: string) {
-  if (mode === 'all') return {}
-  if (mode === 'range') {
-    return {
-      createdAt: {
-        gte: chinaDayRange(startDate).start,
-        lte: chinaDayRange(endDate).end
-      }
-    }
-  }
-  if (mode === 'month') {
-    const range = chinaMonthRange(day)
-    return { createdAt: { gte: range.start, lte: range.end } }
-  }
-  const range = chinaDayRange(day)
-  return { createdAt: { gte: range.start, lte: range.end } }
-}
 
 function quantityText(unitType: string, quantity: number, weight: number) {
   const quantityPart = `${formatDecimal(quantity)}件`
@@ -47,12 +14,8 @@ function quantityText(unitType: string, quantity: number, weight: number) {
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
   const query = getQuery(event)
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
-  const mode = String(query.mode || 'day')
-  const day = String(query.day || today)
-  const startDate = String(query.startDate || day)
-  const endDate = String(query.endDate || day)
-  const dateWhere = whereByDate(mode, day, startDate, endDate)
+  const createdAt = dateWhereFromQuery(query)
+  const dateWhere = Object.keys(createdAt).length ? { createdAt } : {}
 
   const [orders, supermarketOrders] = await Promise.all([
     prisma.order.findMany({

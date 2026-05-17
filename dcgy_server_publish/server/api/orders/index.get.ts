@@ -2,12 +2,13 @@ import { getQuery } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { formatDecimal } from '../../utils/number'
+import { dateWhereFromQuery, todayInChina } from '../../utils/date-query'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
 
   const query = getQuery(event)
-  const date = String(query.date ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
+  const date = String(query.date ?? todayInChina())
   const customer = String(query.customer ?? '').trim()
   const customerId = Number(query.customerId || 0)
   const limit = Math.min(Math.max(Number(query.limit || 100), 1), 300)
@@ -22,7 +23,9 @@ export default defineEventHandler(async (event) => {
         : {})
   }
 
-  if (date === 'all') {
+  if (String(query.mode || '') === 'range' || date === 'range') {
+    where.createdAt = dateWhereFromQuery(query)
+  } else if (date === 'all') {
     // 未选具体客户时，“全部时间”只查最近一年，避免历史订单过多拖慢小程序。
     // 已选具体客户时必须查该客户全部历史，避免客户对账漏单。
     if (!(Number.isFinite(customerId) && customerId > 0)) {
@@ -32,11 +35,7 @@ export default defineEventHandler(async (event) => {
       where.createdAt = { gte: oneYearAgo }
     }
   } else {
-    const [year, month, day] = date.split('-').map(Number)
-    // 店里按中国时间查当天订单，避免凌晨订单被 UTC 日期筛到前一天。
-    const start = new Date(Date.UTC(year, month - 1, day, -8, 0, 0, 0))
-    const end = new Date(Date.UTC(year, month - 1, day + 1, -8, 0, 0, -1))
-    where.createdAt = { gte: start, lte: end }
+    where.createdAt = dateWhereFromQuery({ ...query, day: date })
   }
 
   const [total, orders, summaryRows] = await Promise.all([

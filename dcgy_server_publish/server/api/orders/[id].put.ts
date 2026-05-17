@@ -4,6 +4,7 @@ import { requireStaff } from '../../utils/auth'
 import { assertName, toMoney } from '../../utils/number'
 import { buildOrderItems, deductStock, mapOrderItem, restoreStock } from '../../utils/orders'
 import { recalculateCustomerDebt } from '../../utils/customer-payments'
+import { parseChinaDateTime } from '../../utils/date-query'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
@@ -19,11 +20,11 @@ export default defineEventHandler(async (event) => {
     if (!order) {
       throw createError({ statusCode: 404, statusMessage: '订单不存在' })
     }
-    if (order.status !== 'unpaid' && order.status !== 'cancelled') {
-      throw createError({ statusCode: 400, statusMessage: '只有未付或已毁单订单可以修改' })
+    if (order.status !== 'unpaid' && order.status !== 'paid' && order.status !== 'cancelled') {
+      throw createError({ statusCode: 400, statusMessage: '订单状态不允许修改' })
     }
 
-    if (order.status === 'unpaid') {
+    if (order.status !== 'cancelled') {
       await restoreStock(tx, order.items)
     }
 
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
       create: { name: customerName }
     })
     const items = await buildOrderItems(tx, body?.items)
-    if (order.status === 'unpaid') {
+    if (order.status !== 'cancelled') {
       await deductStock(tx, items)
     }
 
@@ -53,6 +54,7 @@ export default defineEventHandler(async (event) => {
         commission,
         totalAmount,
         profitAmount,
+        ...(body?.createdDate ? { createdAt: parseChinaDateTime(body.createdDate, body.createdTime || '00:00') } : {}),
         items: { create: items.map(mapOrderItem) }
       },
       include: { items: true }
