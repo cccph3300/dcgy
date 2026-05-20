@@ -37,6 +37,7 @@
         <view class="sheet-title">{{ sheetTitle }}</view>
         <view class="sheet-table">
           <view class="sheet-row sheet-head" :class="{ 'profit-mode': profitMode }">
+            <text>ID</text>
             <text>水果名称</text>
             <text>数量</text>
             <text>重量</text>
@@ -46,13 +47,14 @@
             <text v-if="profitMode">利润</text>
           </view>
           <view v-for="(item, index) in sheetRows" :key="index" class="sheet-row" :class="{ even: index % 2 === 1, 'profit-mode': profitMode }">
+            <text class="sheet-no">{{ index + 1 }}</text>
             <text>{{ item.goodsName }}</text>
             <text>{{ numberText(item.quantity) }}</text>
-            <text>{{ item.weight ? numberText(item.weight) : '' }}</text>
-            <text>{{ money(item.price) }}</text>
-            <text>{{ Number(item.commission || 0) ? money(item.commission) : '' }}</text>
-            <text>{{ money(item.subtotal) }}</text>
-            <text v-if="profitMode" :class="{ loss: Number(item.profit || 0) < 0 }">{{ money(item.profit) }}</text>
+            <text>{{ sheetNumber(item.weight) }}</text>
+            <text>{{ sheetMoney(item.price) }}</text>
+            <text>{{ sheetMoney(item.commission) }}</text>
+            <text>{{ sheetMoney(item.subtotal) }}</text>
+            <text v-if="profitMode" :class="{ loss: Number(item.profit || 0) < 0 }">{{ sheetMoney(item.profit) }}</text>
           </view>
         </view>
         <view class="sheet-total">
@@ -72,20 +74,27 @@
       <canvas
         canvas-id="sheetCanvas"
         class="sheet-canvas"
+        :width="canvasWidth"
+        :height="canvasHeight"
         :style="{ width: canvasWidth + 'px', height: canvasHeight + 'px' }"
       ></canvas>
 
       <!-- #ifdef H5 -->
-      <view v-if="previewImageUrl" class="image-preview-mask" @click="closePreview">
+      <image
+        v-if="previewLoadingUrl"
+        class="preview-preload-image"
+        :src="previewLoadingUrl"
+        mode="widthFix"
+        @load="onPreviewImageLoad"
+        @error="onPreviewImageError"
+      ></image>
+      <view v-if="previewVisible && previewImageUrl" class="image-preview-mask" @click="closePreview">
         <view class="image-preview-panel" @click.stop>
           <button class="preview-close" @click="closePreview">×</button>
-          <view v-if="!previewReady" class="preview-loading">图片生成中...</view>
           <image
-            v-show="previewReady"
             class="sheet-preview-image"
             :src="previewImageUrl"
             mode="widthFix"
-            @load="previewReady = true"
           ></image>
         </view>
       </view>
@@ -111,7 +120,8 @@ export default {
       canvasWidth: 375,
       canvasHeight: 520,
       previewImageUrl: '',
-      previewReady: false
+      previewVisible: false,
+      previewLoadingUrl: ''
     }
   },
   computed: {
@@ -189,15 +199,30 @@ export default {
       }
       ctx.fillText(value.slice(0, 8), x, y, maxWidth)
     },
+    sleep(ms = 0) {
+      return new Promise(resolve => setTimeout(resolve, ms))
+    },
+    sheetMoney(value) {
+      const amount = Number(value || 0)
+      if (amount === 0) return '-'
+      if (Math.abs(amount) >= 10000) return String(Math.round(amount))
+      return money(amount)
+    },
+    sheetNumber(value) {
+      const amount = Number(value || 0)
+      if (amount === 0) return '-'
+      return numberText(amount)
+    },
     buildImageRows() {
-      return this.sheetRows.map(item => ({
+      return this.sheetRows.map((item, index) => ({
+        index: index + 1,
         goodsName: item.goodsName,
         quantity: numberText(item.quantity),
-        weight: item.weight ? numberText(item.weight) : '',
-        price: money(item.price),
-        commission: Number(item.commission || 0) ? money(item.commission) : '',
-        subtotal: money(item.subtotal),
-        profit: money(item.profit)
+        weight: this.sheetNumber(item.weight),
+        price: this.sheetMoney(item.price),
+        commission: this.sheetMoney(item.commission),
+        subtotal: this.sheetMoney(item.subtotal),
+        profit: this.sheetMoney(item.profit)
       }))
     },
     calcItemProfit(item) {
@@ -232,23 +257,25 @@ export default {
       ctx.fillText(this.sheetTitle, width / 2, 62)
 
       const columns = [
-        { title: '水果名称', x: 24, width: 184, align: 'left' },
-        { title: '数量', x: 245, width: 70, align: 'center' },
-        { title: '重量', x: 350, width: 80, align: 'center' },
-        { title: '价格', x: 460, width: 86, align: 'center' },
-        { title: '佣金', x: 566, width: 76, align: 'center' },
+        { title: '号', x: 20, width: 40, align: 'center' },
+        { title: '水果名称', x: 72, width: 178, align: 'left' },
+        { title: '数量', x: 286, width: 60, align: 'center' },
+        { title: '重量', x: 368, width: 68, align: 'center' },
+        { title: '价格', x: 454, width: 76, align: 'center' },
+        { title: '佣金', x: 548, width: 72, align: 'center' },
         { title: '总价', x: 710, width: 100, align: 'right' }
       ]
       if (this.profitMode) {
         columns.splice(
           0,
           columns.length,
-          { title: '水果名称', x: 24, width: 164, align: 'left' },
-          { title: '数量', x: 215, width: 62, align: 'center' },
-          { title: '重量', x: 298, width: 70, align: 'center' },
-          { title: '价格', x: 386, width: 76, align: 'center' },
-          { title: '佣金', x: 480, width: 66, align: 'center' },
-          { title: '总价', x: 604, width: 88, align: 'right' },
+          { title: '号', x: 20, width: 40, align: 'center' },
+          { title: '水果名称', x: 72, width: 166, align: 'left' },
+          { title: '数量', x: 276, width: 56, align: 'center' },
+          { title: '重量', x: 352, width: 64, align: 'center' },
+          { title: '价格', x: 436, width: 72, align: 'center' },
+          { title: '佣金', x: 524, width: 68, align: 'center' },
+          { title: '总价', x: 630, width: 86, align: 'right' },
           { title: '利润', x: 726, width: 88, align: 'right' }
         )
       }
@@ -269,8 +296,8 @@ export default {
         ctx.setFillStyle('#111111')
         ctx.setFontSize(24)
         const values = this.profitMode
-          ? [row.goodsName, row.quantity, row.weight, row.price, row.commission, row.subtotal, row.profit]
-          : [row.goodsName, row.quantity, row.weight, row.price, row.commission, row.subtotal]
+          ? [row.index, row.goodsName, row.quantity, row.weight, row.price, row.commission, row.subtotal, row.profit]
+          : [row.index, row.goodsName, row.quantity, row.weight, row.price, row.commission, row.subtotal]
         columns.forEach((column, columnIndex) => {
           ctx.setTextAlign(column.align)
           this.drawText(ctx, values[columnIndex], column.x, y + 37, column.width)
@@ -288,7 +315,10 @@ export default {
       ctx.setTextAlign('right')
       ctx.fillText(`合计总价: ¥${money(this.order.totalAmount)}`, width - 24, totalY + 48)
       return new Promise(resolve => {
-        ctx.draw(false, () => resolve({ width, height }))
+        ctx.draw(false, async () => {
+          await this.sleep(300)
+          resolve({ width, height })
+        })
       })
     },
     saveSheetImage() {
@@ -298,9 +328,12 @@ export default {
       this.canvasWidth = size.width
       this.canvasHeight = size.height
       this.previewImageUrl = ''
-      this.previewReady = false
+      this.previewVisible = false
+      this.previewLoadingUrl = ''
       this.$nextTick(async () => {
-        const drawnSize = await this.drawSheetCanvas(size)
+        try {
+          await this.sleep(300)
+          const drawnSize = await this.drawSheetCanvas(size)
           uni.canvasToTempFilePath({
             canvasId: 'sheetCanvas',
             width: drawnSize.width,
@@ -309,28 +342,45 @@ export default {
             destHeight: drawnSize.height,
             success: (res) => {
               // #ifdef H5
-              this.previewImageUrl = res.tempFilePath
+              this.previewLoadingUrl = res.tempFilePath
               // #endif
               // #ifndef H5
               uni.saveImageToPhotosAlbum({
                 filePath: res.tempFilePath,
                 success: () => uni.showToast({ title: '已保存到相册', icon: 'success' }),
-                fail: () => uni.showToast({ title: '保存失败，请开启相册权限', icon: 'none' })
+                fail: () => uni.showToast({ title: '保存失败，请开启相册权限', icon: 'none' }),
+                complete: () => {
+                  this.savingImage = false
+                }
               })
               // #endif
             },
             fail: () => {
-              uni.showToast({ title: '图片生成失败', icon: 'none' })
-            },
-            complete: () => {
               this.savingImage = false
+              uni.showToast({ title: '图片生成失败', icon: 'none' })
             }
           }, this)
+        } catch (err) {
+          this.savingImage = false
+          uni.showToast({ title: '图片生成失败', icon: 'none' })
+        }
       })
+    },
+    onPreviewImageLoad() {
+      this.previewImageUrl = this.previewLoadingUrl
+      this.previewLoadingUrl = ''
+      this.previewVisible = true
+      this.savingImage = false
+    },
+    onPreviewImageError() {
+      this.previewLoadingUrl = ''
+      this.savingImage = false
+      uni.showToast({ title: '图片生成失败', icon: 'none' })
     },
     closePreview() {
       this.previewImageUrl = ''
-      this.previewReady = false
+      this.previewVisible = false
+      this.previewLoadingUrl = ''
     },
     openEdit() {
       uni.navigateTo({ url: `/subpackages/delivery/create?id=${this.id}` })
@@ -471,7 +521,7 @@ export default {
 
 .sheet-row {
   display: grid;
-  grid-template-columns: 1.5fr 0.8fr 0.9fr 0.9fr 0.9fr 1fr;
+  grid-template-columns: 0.38fr 1.72fr 0.8fr 0.9fr 0.9fr 0.9fr 1fr;
   min-height: 54rpx;
   align-items: center;
   padding: 0 10rpx;
@@ -480,7 +530,7 @@ export default {
 }
 
 .sheet-row.profit-mode {
-  grid-template-columns: 1.4fr 0.7fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr;
+  grid-template-columns: 0.36fr 1.54fr 0.7fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr;
 }
 
 .sheet-row text {
@@ -493,6 +543,10 @@ export default {
 
 .sheet-row text.loss {
   color: #d64b3f;
+}
+
+.sheet-no {
+  font-size: 22rpx;
 }
 
 .sheet-head {
@@ -612,6 +666,15 @@ export default {
   display: block;
   width: 100%;
   background: #ffffff;
+}
+
+.preview-preload-image {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 750px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .preview-loading {

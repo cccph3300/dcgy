@@ -96,7 +96,7 @@
 <script>
 import { request, requireLogin } from '../../utils/request'
 import { money } from '../../utils/format'
-import { DELIVERY_OCR_DRAFT_KEY } from '../../config/api'
+import { DELIVERY_OCR_DRAFT_KEY, OCR_URL } from '../../config/api'
 
 const emptyItem = () => ({
   type: 'purchase',
@@ -245,35 +245,18 @@ export default {
         })
       // #endif
 
-      // #ifndef MP-WEIXIN
-      // #ifndef H5
-      const fileManager = uni.getFileSystemManager?.()
-      if (!fileManager) {
-        uni.showToast({ title: '当前环境不支持读取图片', icon: 'none' })
-        this.recognizing = false
-        uni.hideLoading()
-        return
-      }
-      fileManager.readFile({
-        filePath,
-        success: ({ data }) => {
-          const imageBase64 = uni.arrayBufferToBase64 ? uni.arrayBufferToBase64(data) : ''
-          this.submitOcr(imageBase64).then((result) => {
-            this.applyOcrResult(result)
-          }).catch((err) => {
-            uni.showToast({ title: err?.message || '识别接口连接失败', icon: 'none' })
-          }).finally(() => {
-            this.recognizing = false
-            uni.hideLoading()
-          })
-        },
-        fail: () => {
-          uni.showToast({ title: '图片读取失败', icon: 'none' })
+      // #ifdef APP-PLUS
+      this.uploadOcrFile(filePath)
+        .then((result) => {
+          this.applyOcrResult(result)
+        })
+        .catch((err) => {
+          uni.showToast({ title: err?.message || '识别接口连接失败', icon: 'none' })
+        })
+        .finally(() => {
           this.recognizing = false
           uni.hideLoading()
-        }
-      })
-      // #endif
+        })
       // #endif
     },
     readH5ImageBase64(filePath, tempFile) {
@@ -312,11 +295,45 @@ export default {
         timeout: 30000
       })
     },
+    uploadOcrFile(filePath) {
+      return new Promise((resolve, reject) => {
+        uni.uploadFile({
+          url: OCR_URL,
+          filePath,
+          name: 'file',
+          timeout: 30000,
+          formData: {
+            filename: 'ocr.jpg'
+          },
+          success: (res) => {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
+              const errorData = this.parseUploadResponse(res.data)
+              const message = errorData.statusMessage || errorData.message || '识别失败'
+              reject(new Error(message))
+              return
+            }
+            resolve(res.data)
+          },
+          fail: (err) => {
+            reject(new Error(err?.errMsg || '识别接口连接失败'))
+          }
+        })
+      })
+    },
+    parseUploadResponse(rawData) {
+      if (!rawData) return {}
+      if (typeof rawData === 'object') return rawData
+      try {
+        return JSON.parse(String(rawData))
+      } catch (err) {
+        return {}
+      }
+    },
     applyOcrResult(rawData) {
       let data = rawData
       if (typeof rawData === 'string') {
         try {
-          data = JSON.parse(rawData || '{}')
+          data = this.parseUploadResponse(rawData)
         } catch (err) {
           uni.showToast({ title: '识别结果解析失败', icon: 'none' })
           return

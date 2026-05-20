@@ -1,12 +1,23 @@
 <template>
   <view class="page delivery-list">
     <view class="soft-card filter-card">
-      <picker :value="dateIndex" :range="dateOptions" range-key="label" @change="changeDateMode">
-        <view class="input picker-input">{{ dateLabel }}</view>
-      </picker>
-      <picker v-if="dateMode === 'day'" mode="date" :value="date" @change="changeDate">
-        <view class="filter-button">换日期</view>
-      </picker>
+      <view class="date-wrap">
+        <picker :value="dateIndex" :range="dateOptions" range-key="label" @change="changeDateMode">
+          <view class="input picker-input">{{ dateLabel }}</view>
+        </picker>
+        <picker v-if="dateMode === 'day'" mode="date" :value="date" @change="changeDate">
+          <view class="filter-button">换日期</view>
+        </picker>
+      </view>
+      <view v-if="dateMode === 'range'" class="range-wrap">
+        <picker mode="date" :value="startDate" @change="changeStartDate">
+          <view class="date-change range-date">{{ startDate }}</view>
+        </picker>
+        <text class="range-sep">至</text>
+        <picker mode="date" :value="endDate" @change="changeEndDate">
+          <view class="date-change range-date">{{ endDate }}</view>
+        </picker>
+      </view>
       <picker :value="statusIndex" :range="statusOptions" range-key="label" @change="changeStatus">
         <view class="input picker-input">{{ statusLabel }}</view>
       </picker>
@@ -56,15 +67,18 @@ import { money, timeText, todayText } from '../../utils/format'
 
 export default {
   data() {
+    const today = todayText()
     return {
-      date: todayText(),
+      date: today,
+      startDate: today,
+      endDate: today,
       dateMode: 'day',
       status: '',
       marketName: '',
       orders: [],
       pagination: {
         page: 1,
-        pageSize: 10,
+        pageSize: 6,
         total: 0,
         totalPages: 1
       },
@@ -72,6 +86,7 @@ export default {
       error: '',
       dateOptions: [
         { label: '今天', value: 'day' },
+        { label: '日期范围', value: 'range' },
         { label: '全部日期', value: 'all' }
       ],
       statusOptions: [
@@ -84,10 +99,13 @@ export default {
   },
   computed: {
     dateIndex() {
-      return this.dateMode === 'all' ? 1 : 0
+      const index = this.dateOptions.findIndex(item => item.value === this.dateMode)
+      return index < 0 ? 0 : index
     },
     dateLabel() {
-      return this.dateMode === 'all' ? '全部日期' : this.date
+      if (this.dateMode === 'all') return '全部日期'
+      if (this.dateMode === 'range') return '日期范围'
+      return this.date
     },
     statusIndex() {
       const index = this.statusOptions.findIndex(item => item.value === this.status)
@@ -126,6 +144,18 @@ export default {
       this.dateMode = 'day'
       this.reload()
     },
+    changeStartDate(event) {
+      this.startDate = event.detail.value
+      if (this.startDate > this.endDate) this.endDate = this.startDate
+      this.dateMode = 'range'
+      this.reload()
+    },
+    changeEndDate(event) {
+      this.endDate = event.detail.value
+      if (this.endDate < this.startDate) this.startDate = this.endDate
+      this.dateMode = 'range'
+      this.reload()
+    },
     changeStatus(event) {
       this.status = this.statusOptions[Number(event.detail.value)].value
       this.reload()
@@ -148,9 +178,12 @@ export default {
       this.loading = true
       this.error = ''
       try {
-        const dateParam = this.dateMode === 'all' ? 'all' : this.date
+        const dateParam = this.dateMode === 'all' ? 'all' : (this.dateMode === 'range' ? 'range' : this.date)
+        const rangeParams = this.dateMode === 'range'
+          ? `&mode=range&startDate=${encodeURIComponent(this.startDate)}&endDate=${encodeURIComponent(this.endDate)}`
+          : ''
         const result = await request({
-          url: `/api/supermarket-orders?date=${encodeURIComponent(dateParam)}&supermarketName=${encodeURIComponent(this.marketName.trim())}&status=${encodeURIComponent(this.status)}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
+          url: `/api/supermarket-orders?date=${encodeURIComponent(dateParam)}${rangeParams}&supermarketName=${encodeURIComponent(this.marketName.trim())}&status=${encodeURIComponent(this.status)}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
         })
         this.orders = Array.isArray(result) ? result : (result.items || [])
         this.pagination = result.pagination || {
@@ -189,9 +222,38 @@ export default {
 <style scoped>
 .filter-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 108rpx;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12rpx;
   padding: 16rpx;
+}
+
+.date-wrap {
+  position: relative;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108rpx;
+  gap: 8rpx;
+  align-items: center;
+  min-width: 0;
+}
+
+.range-wrap {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38rpx minmax(0, 1fr);
+  gap: 8rpx;
+  align-items: center;
+}
+
+.range-date {
+  width: auto;
+}
+
+.range-sep {
+  color: #718078;
+  font-size: 24rpx;
+  font-weight: 900;
+  text-align: center;
 }
 
 .filter-card .search-input {
@@ -207,6 +269,20 @@ export default {
 .filter-button {
   justify-content: center;
   min-height: 68rpx;
+  border-radius: 12rpx;
+  background: #e8f6ed;
+  color: #16945f;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.date-change {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 68rpx;
+  min-height: 68rpx;
+  padding: 0 8rpx;
   border-radius: 12rpx;
   background: #e8f6ed;
   color: #16945f;
