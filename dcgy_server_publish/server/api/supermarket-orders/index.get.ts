@@ -2,12 +2,13 @@ import { getQuery } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { formatDecimal } from '../../utils/number'
+import { dateWhereFromQuery, todayInChina } from '../../utils/date-query'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
 
   const query = getQuery(event)
-  const date = String(query.date ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
+  const date = String(query.date ?? todayInChina())
   const supermarketName = String(query.supermarketName ?? '').trim()
   const status = String(query.status ?? '').trim()
   const page = Math.max(Number(query.page || 1), 1)
@@ -17,12 +18,7 @@ export default defineEventHandler(async (event) => {
     ...(status === 'active' || status === 'paid' || status === 'cancelled' ? { status } : {})
   }
 
-  if (date !== 'all') {
-    const [year, month, day] = date.split('-').map(Number)
-    const start = new Date(Date.UTC(year, month - 1, day, -8, 0, 0, 0))
-    const end = new Date(Date.UTC(year, month - 1, day + 1, -8, 0, 0, -1))
-    where.createdAt = { gte: start, lte: end }
-  }
+  if (date !== 'all') where.createdAt = dateWhereFromQuery({ ...query, day: date })
 
   const [total, orders, summaryRows] = await Promise.all([
     prisma.supermarketOrder.count({ where }),
