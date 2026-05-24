@@ -215,6 +215,7 @@ export default {
       id: '',
       profitMode: false,
       missedMode: false,
+      autoEdit: false,
       order: null,
       shareToken: '',
       editing: false,
@@ -281,6 +282,7 @@ export default {
     this.id = query.id
     this.profitMode = query.profit === '1'
     this.missedMode = query.missed === '1'
+    this.autoEdit = query.edit === '1'
   },
   onShow() {
     if (requireLogin() && !this.editing) this.loadOrder()
@@ -329,6 +331,10 @@ export default {
           title: this.profitMode ? '其他/利润/订单利润详情' : (order.status === 'cancelled' ? '其他/回收站/订单详情' : '订单/订单详情')
         })
         if (!this.editing) this.resetEditForm()
+        if (this.autoEdit && this.canEditOrder && !this.editing) {
+          this.autoEdit = false
+          await this.startEdit()
+        }
       } catch (err) {
         this.error = err.message || this.text.loadFailed
       } finally {

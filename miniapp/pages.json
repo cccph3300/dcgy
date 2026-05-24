@@ -7,6 +7,12 @@
       }
     },
     {
+      "path": "pages/ai/index",
+      "style": {
+        "navigationBarTitleText": "AI智能对话"
+      }
+    },
+    {
       "path": "pages/order/index",
       "style": {
         "navigationBarTitleText": "点单"
@@ -246,6 +252,12 @@
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
+      {
+        "pagePath": "pages/ai/index",
+        "text": "AI",
+        "iconPath": "static/tabbar/ai.png",
+        "selectedIconPath": "static/tabbar/ai-active.png"
+      },
       {
         "pagePath": "pages/order/index",
         "text": "点单",
