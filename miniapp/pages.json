@@ -1,12 +1,6 @@
 {
   "pages": [
     {
-      "path": "pages/login/index",
-      "style": {
-        "navigationBarTitleText": "登录"
-      }
-    },
-    {
       "path": "pages/ai/index",
       "style": {
         "navigationBarTitleText": "AI智能对话"
@@ -25,6 +19,18 @@
       }
     },
     {
+      "path": "pages/inventory/index",
+      "style": {
+        "navigationBarTitleText": "其他"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
       "path": "pages/orders/debt",
       "style": {
         "navigationBarTitleText": "订单/客户欠账"
@@ -34,12 +40,6 @@
       "path": "pages/orders/detail",
       "style": {
         "navigationBarTitleText": "订单/订单详情"
-      }
-    },
-    {
-      "path": "pages/inventory/index",
-      "style": {
-        "navigationBarTitleText": "其他"
       }
     },
     {

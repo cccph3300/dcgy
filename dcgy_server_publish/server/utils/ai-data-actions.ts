@@ -756,6 +756,33 @@ function parseContextMessages(messages: AiContextMessage[]) {
   return {}
 }
 
+function isSimpleCustomerNameReply(content: string) {
+  const normalized = normalizeCompact(content)
+  if (!normalized || normalized.length > 20) return ''
+  if (/\d/.test(normalized)) return ''
+  if (new RegExp(`(${QUERY_WORDS}|${CREATE_WORDS}|${APPEND_WORDS}|${ORDER_WORDS}|${INVENTORY_WORDS}|${DEBT_WORDS}|${PROFIT_WORDS})`).test(normalized)) return ''
+  return isMeaningfulCustomerName(content)
+}
+
+function findPendingCreateFromMessages(messages?: AiContextMessage[], currentContent = ''): ParsedDraft | null {
+  if (!Array.isArray(messages) || !messages.length) return null
+  const currentCompact = normalizeCompact(currentContent)
+  const orderedMessages = messages.slice(-10)
+
+  for (let index = orderedMessages.length - 1; index >= 0; index -= 1) {
+    const message = orderedMessages[index]
+    if (message?.role !== 'user') continue
+
+    const text = String(message.content || '')
+    if (currentCompact && normalizeCompact(text) === currentCompact) continue
+
+    const parsed = extractCreateSegments(text)
+    if (parsed.items.length && !parsed.customerName) return parsed
+  }
+
+  return null
+}
+
 async function getConversationContext(staffId: number, context?: AiDataContext): Promise<AiConversationContext> {
   const messages = Array.isArray(context?.messages) ? context.messages.slice(-12).reverse() : []
   const fromClient = parseContextMessages(messages)
@@ -1391,6 +1418,17 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
       conversationContext = await getConversationContext(staffId, dataContext)
     }
     return conversationContext
+  }
+
+  const customerReply = isSimpleCustomerNameReply(content)
+  if (customerReply) {
+    const pendingCreate = findPendingCreateFromMessages(dataContext?.messages, content)
+    if (pendingCreate?.items.length) {
+      return buildCreateOrderResult(staffId, {
+        ...pendingCreate,
+        customerName: customerReply
+      })
+    }
   }
 
   if (dataContext?.structuredIntent) {

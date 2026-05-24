@@ -52,10 +52,10 @@ export default {
   async onShow() {
     if (!getToken() || this.checkingSession) return
     this.checkingSession = true
-    // APP 冷启动可能先显示登录页；有本地 token 时先进入业务页，避免网络校验期间误以为需要重新登录。
+    // APP 冷启动可能先显示登录页；有本地 token 时先进入第一个 tab，避免网络校验期间误以为需要重新登录。
     // 服务端会在后续业务接口返回 401 时统一要求重新登录。
     // #ifdef APP-PLUS
-    uni.reLaunch({ url: '/pages/order/index' })
+    uni.switchTab({ url: '/pages/ai/index' })
     this.checkingSession = false
     return
     // #endif
@@ -63,7 +63,7 @@ export default {
     try {
       const data = await request({ url: '/api/auth/me', showErrorToast: false })
       if (data.staff) {
-        uni.reLaunch({ url: '/pages/order/index' })
+        uni.switchTab({ url: '/pages/ai/index' })
       } else {
         clearSession()
       }
@@ -95,7 +95,7 @@ export default {
           showErrorToast: false
         })
         setSession(data.token, data.staff || data)
-        uni.reLaunch({ url: '/pages/order/index' })
+        uni.switchTab({ url: '/pages/ai/index' })
       } catch (err) {
         this.loginError = err?.message || this.text.invalid
       } finally {

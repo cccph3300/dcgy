@@ -1,6 +1,6 @@
 <template>
   <page-meta page-style="overflow: hidden;" />
-  <view class="page ai-page">
+  <view class="page ai-page" :class="{ 'keyboard-open': keyboardVisible }">
     <view class="top-bar">
       <view class="title-wrap">
         <text class="brand">东成果业</text>
@@ -165,6 +165,7 @@
             placeholder="先说内容，再点发送"
             :maxlength="100"
             auto-height
+            :adjust-position="false"
             :show-confirm-bar="false"
             :cursor-spacing="18"
           ></textarea>
@@ -196,6 +197,33 @@
         </view>
       </view>
     </view>
+
+    <view
+      v-if="voiceOverlayVisible"
+      class="voice-record-mask"
+      :class="{ cancel: cancelledRecording }"
+      @touchmove.stop.prevent="onVoiceTouchMove"
+      @touchend.stop.prevent="onVoiceTouchEnd"
+      @touchcancel.stop.prevent="onVoiceTouchCancel"
+    >
+      <view class="voice-record-bubble" :class="{ cancel: cancelledRecording }">
+        <view class="wave-bars">
+          <text v-for="bar in voiceBars" :key="bar" class="wave-bar"></text>
+        </view>
+      </view>
+      <view class="voice-record-panel">
+        <view class="voice-record-hint">{{ voiceOverlayHint }}</view>
+        <view class="voice-record-actions">
+          <view class="voice-record-action cancel-action" :class="{ active: cancelledRecording }">
+            <text>取消</text>
+          </view>
+          <view class="voice-record-action text-action" :class="{ active: !cancelledRecording }">
+            <text>滑到这里 转文字</text>
+          </view>
+        </view>
+        <view class="voice-record-bottom">{{ cancelledRecording ? '松手 取消' : '松开 识别' }}</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -208,6 +236,7 @@ import {
   readBlobAsBase64,
   readFileAsBase64,
   sendAiMessage,
+  sendAiMessageHttp,
   speechToText
 } from '../../utils/ai'
 import { request, requireLogin } from '../../utils/request'
@@ -218,6 +247,7 @@ export default {
     return {
       maxMessages: 50,
       socketTask: null,
+      socketFailed: false,
       connected: false,
       busy: false,
       recognizing: false,
@@ -240,8 +270,12 @@ export default {
       historyLoadUnlockTimer: null,
       aiTimeoutTimer: null,
       scrollReleaseTimer: null,
+      keyboardVisible: false,
+      keyboardHeightHandler: null,
       touchStartY: 0,
+      touchStartX: 0,
       touchCancelThreshold: 72,
+      touchCancelXThreshold: 110,
       touchActive: false,
       cancelledRecording: false,
       mouseActive: false,
@@ -252,7 +286,9 @@ export default {
       recordStartTimer: null,
       h5MediaRecorder: null,
       h5RecordChunks: [],
-      h5RecordStream: null
+      h5RecordStream: null,
+      voiceOverlayVisible: false,
+      voiceBars: [1, 2, 3, 4, 5, 6, 7, 8, 9]
     }
   },
   computed: {
@@ -260,7 +296,7 @@ export default {
       if (this.recording) return '录音中'
       if (this.recognizing) return '识别中'
       if (this.busy) return 'AI 思考中'
-      return this.connected ? '已连接' : '连接中'
+      return this.connected ? '已连接' : '可用'
     },
     voiceMainText() {
       if (this.recognizing) return '识别中...'
@@ -271,6 +307,10 @@ export default {
       if (this.recognizing) return '语音会回填到输入框'
       if (this.recording) return '上滑取消'
       return ''
+    },
+    voiceOverlayHint() {
+      if (this.cancelledRecording) return '松手 取消'
+      return '松手 识别文字'
     },
     canSendText() {
       return !!String(this.inputText || '').trim()
@@ -285,6 +325,14 @@ export default {
     this.openSocket()
     this.initRecorder()
     if (!this.historyLoaded) this.loadLatestMessages()
+    // #ifdef MP-WEIXIN || APP-PLUS
+    if (!this.keyboardHeightHandler && typeof uni.onKeyboardHeightChange === 'function') {
+      this.keyboardHeightHandler = (res) => {
+        this.keyboardVisible = Number(res?.height || 0) > 0
+      }
+      uni.onKeyboardHeightChange(this.keyboardHeightHandler)
+    }
+    // #endif
   },
   onHide() {
     this.closeSocket()
@@ -309,6 +357,12 @@ export default {
       clearTimeout(this.draftGoodsTimer)
       this.draftGoodsTimer = null
     }
+    // #ifdef MP-WEIXIN || APP-PLUS
+    if (this.keyboardHeightHandler && typeof uni.offKeyboardHeightChange === 'function') {
+      uni.offKeyboardHeightChange(this.keyboardHeightHandler)
+      this.keyboardHeightHandler = null
+    }
+    // #endif
   },
   methods: {
     money,
@@ -328,9 +382,11 @@ export default {
     },
     openSocket() {
       if (this.socketTask) return
+      this.socketFailed = false
       this.socketTask = connectAiSocket({
         onReady: () => {
           this.connected = true
+          this.socketFailed = false
         },
         onStart: () => {
           this.busy = true
@@ -341,8 +397,9 @@ export default {
         onDone: () => {
           this.finishAssistant()
         },
-        onError: (message) => {
-          this.failAssistant(message)
+        onError: () => {
+          this.socketFailed = true
+          this.connected = false
         },
         onClose: () => {
           this.connected = false
@@ -438,6 +495,7 @@ export default {
         const cancelled = this.cancelledRecording
         this.recording = false
         this.cancelledRecording = false
+        this.voiceOverlayVisible = false
         if (cancelled) return
         await this.handleNativeRecordStop(res?.tempFilePath)
       })
@@ -445,6 +503,7 @@ export default {
         this.recording = false
         this.recognizing = false
         this.cancelledRecording = false
+        this.voiceOverlayVisible = false
         this.resetH5Record()
         uni.showToast({ title: err?.errMsg || '录音失败', icon: 'none' })
       })
@@ -502,17 +561,19 @@ export default {
         this.recordStartTimer = null
       }
     },
-    getEventY(event) {
-      return event?.touches?.[0]?.clientY ?? event?.clientY ?? 0
+    getEventPoint(event) {
+      const touch = event?.touches?.[0] || event?.changedTouches?.[0] || event
+      return {
+        x: touch?.clientX ?? 0,
+        y: touch?.clientY ?? 0
+      }
     },
     onVoiceTouchStart(event) {
-      this.startVoicePress(this.getEventY(event))
+      this.startVoicePress(this.getEventPoint(event))
     },
     onVoiceTouchMove(event) {
       if (!this.touchActive || !this.recording) return
-      const currentY = this.getEventY(event)
-      const deltaY = this.touchStartY - currentY
-      this.cancelledRecording = deltaY > this.touchCancelThreshold
+      this.updateVoiceCancelState(this.getEventPoint(event))
     },
     onVoiceTouchEnd() {
       this.endVoicePress()
@@ -523,14 +584,12 @@ export default {
     onVoiceMouseDown(event) {
       if (event?.button !== 0) return
       this.mouseActive = true
-      this.startVoicePress(this.getEventY(event))
+      this.startVoicePress(this.getEventPoint(event))
       this.bindMouseListeners()
     },
     onWindowMouseMove(event) {
       if (!this.mouseActive || !this.recording) return
-      const currentY = this.getEventY(event)
-      const deltaY = this.touchStartY - currentY
-      this.cancelledRecording = deltaY > this.touchCancelThreshold
+      this.updateVoiceCancelState(this.getEventPoint(event))
     },
     onWindowMouseUp() {
       if (!this.mouseActive) return
@@ -560,25 +619,41 @@ export default {
       window.removeEventListener('blur', this.onWindowMouseLeave)
       // #endif
     },
-    startVoicePress(clientY) {
+    updateVoiceCancelState(point) {
+      const deltaY = this.touchStartY - point.y
+      const deltaX = this.touchStartX - point.x
+      const nextCancelled = deltaY > this.touchCancelThreshold || deltaX > this.touchCancelXThreshold
+      if (nextCancelled !== this.cancelledRecording) {
+        this.vibratePhone(nextCancelled ? 'heavy' : 'medium')
+      }
+      this.cancelledRecording = nextCancelled
+    },
+    startVoicePress(point) {
       if (!this.voiceSupported || this.busy || this.recognizing || this.recording) return
       this.touchActive = true
       this.cancelledRecording = false
-      this.touchStartY = clientY || 0
+      this.voiceOverlayVisible = true
+      this.touchStartX = point?.x || 0
+      this.touchStartY = point?.y || 0
       this.clearRecordStartTimer()
+      this.vibratePhone('medium')
       this.recordStartTimer = setTimeout(() => {
         if (!this.touchActive) return
         this.beginVoiceRecord()
-      }, 220)
+      }, 60)
     },
     endVoicePress() {
       this.clearRecordStartTimer()
       if (!this.touchActive) return
       this.touchActive = false
-      if (!this.recording) return
+      if (!this.recording) {
+        this.voiceOverlayVisible = false
+        return
+      }
       if (this.cancelledRecording) {
         this.cancelVoicePress()
       } else {
+        this.vibratePhone('light')
         this.stopVoiceRecord()
       }
     },
@@ -587,11 +662,22 @@ export default {
       this.touchActive = false
       if (this.recording) {
         this.cancelledRecording = true
+        this.vibratePhone('heavy')
         this.stopVoiceRecord()
       } else {
         this.cancelledRecording = false
+        this.voiceOverlayVisible = false
       }
       this.unbindMouseListeners()
+    },
+    vibratePhone(type = 'medium') {
+      if (typeof uni.vibrateShort === 'function') {
+        uni.vibrateShort({ type })
+        return
+      }
+      if (typeof uni.vibrateLong === 'function') {
+        uni.vibrateLong({})
+      }
     },
     beginVoiceRecord() {
       if (this.recording || this.recognizing) return
@@ -602,26 +688,49 @@ export default {
       // #endif
       this.startNativeRecord()
     },
+    getNativeRecordOptions() {
+      const options = {
+        duration: 60000,
+        sampleRate: 16000
+      }
+      // #ifdef APP-PLUS
+      // App 端官方默认格式是 mp3，安卓兼容性比强制 aac 更稳。
+      options.format = 'mp3'
+      // #endif
+      // #ifdef MP-WEIXIN
+      // 小程序端继续使用原本稳定的 aac，并保留小程序支持的码率参数。
+      options.numberOfChannels = 1
+      options.encodeBitRate = 96000
+      options.format = 'aac'
+      // #endif
+      return options
+    },
+    getNativeVoiceFormat(filePath) {
+      // #ifdef APP-PLUS
+      return 'mp3'
+      // #endif
+      // #ifdef MP-WEIXIN
+      return inferVoiceFormat(filePath || 'record.aac')
+      // #endif
+      return inferVoiceFormat(filePath)
+    },
     startNativeRecord() {
       this.ensureRecordPermission()
         .then(() => {
           this.initRecorder()
           if (!this.recorder || typeof this.recorder.start !== 'function') {
+            this.voiceOverlayVisible = false
             uni.showToast({ title: '当前设备不支持录音', icon: 'none' })
             return
           }
           this.recording = true
           this.cancelledRecording = false
-          this.recorder.start({
-            duration: 60000,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            encodeBitRate: 48000,
-            format: 'aac'
-          })
+          this.voiceOverlayVisible = true
+          this.recorder.start(this.getNativeRecordOptions())
         })
         .catch((err) => {
           this.recording = false
+          this.voiceOverlayVisible = false
           this.clearRecordStartTimer()
           uni.showToast({ title: err?.message || '麦克风权限被拒绝', icon: 'none' })
         })
@@ -649,6 +758,7 @@ export default {
         this.h5MediaRecorder = recorder
         this.recording = true
         this.cancelledRecording = false
+        this.voiceOverlayVisible = true
 
         recorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) {
@@ -661,12 +771,14 @@ export default {
           this.resetH5Record()
           this.recording = false
           this.cancelledRecording = false
+          this.voiceOverlayVisible = false
           if (cancelled) return
           await this.handleH5RecordStop(blob)
         }
         recorder.onerror = () => {
           this.recording = false
           this.cancelledRecording = false
+          this.voiceOverlayVisible = false
           this.resetH5Record()
           uni.showToast({ title: '录音失败', icon: 'none' })
         }
@@ -674,6 +786,7 @@ export default {
         recorder.start()
       } catch (err) {
         this.recording = false
+        this.voiceOverlayVisible = false
         this.resetH5Record()
         uni.showToast({ title: err?.message || '无法启动语音录制', icon: 'none' })
       }
@@ -698,6 +811,7 @@ export default {
       this.touchActive = false
       this.mouseActive = false
       this.cancelledRecording = false
+      this.voiceOverlayVisible = false
       this.unbindMouseListeners()
       if (this.recording) {
         this.stopVoiceRecord()
@@ -706,6 +820,7 @@ export default {
       }
       this.recording = false
       this.recognizing = false
+      this.voiceOverlayVisible = false
     },
     resetH5Record() {
       if (this.h5RecordStream && typeof this.h5RecordStream.getTracks === 'function') {
@@ -718,6 +833,7 @@ export default {
     async handleH5RecordStop(blob) {
       if (!blob || !blob.size) return
       this.recognizing = true
+      this.voiceOverlayVisible = false
       uni.showLoading({ title: '识别中...' })
       try {
         const audioBase64 = await readBlobAsBase64(blob)
@@ -733,10 +849,11 @@ export default {
     async handleNativeRecordStop(filePath) {
       if (!filePath) return
       this.recognizing = true
+      this.voiceOverlayVisible = false
       uni.showLoading({ title: '识别中...' })
       try {
         const audioBase64 = await readFileAsBase64(filePath)
-        const text = await this.requestSpeechText(audioBase64, inferVoiceFormat(filePath))
+        const text = await this.requestSpeechText(audioBase64, this.getNativeVoiceFormat(filePath))
         this.fillSpeechText(text)
       } catch (err) {
         uni.showToast({ title: err?.message || '语音识别失败', icon: 'none' })
@@ -766,10 +883,6 @@ export default {
       const content = this.inputText.trim()
       if (!content || this.busy) return
       this.openSocket()
-      if (!this.socketTask) {
-        uni.showToast({ title: 'AI 连接失败', icon: 'none' })
-        return
-      }
 
       this.inputText = ''
       this.addMessage('user', content)
@@ -781,10 +894,29 @@ export default {
       this.scrollToBottom(true)
 
       try {
-        await sendAiMessage(this.socketTask, this.buildHistory(), content, this.buildAiContext())
+        const history = this.buildHistory()
+        const context = this.buildAiContext()
+        if (this.socketTask && !this.socketFailed) {
+          await sendAiMessage(this.socketTask, history, content, context)
+        } else {
+          await this.sendByHttp(history, content, context)
+        }
       } catch (err) {
-        this.failAssistant(err?.message || '发送失败')
+        try {
+          await this.sendByHttp(this.buildHistory(), content, this.buildAiContext())
+        } catch (httpErr) {
+          this.failAssistant(httpErr?.message || err?.message || '发送失败')
+        }
       }
+    },
+    async sendByHttp(messages, content, context) {
+      const result = await sendAiMessageHttp(messages, content, context)
+      this.appendAssistantDelta({
+        content: result?.content || '',
+        action: result?.action || null,
+        final: true
+      })
+      this.finishAssistant()
     },
     buildHistory() {
       return this.messages
@@ -1421,7 +1553,7 @@ export default {
 }
 
 .editable-table {
-  overflow-x: auto;
+  overflow: visible;
   border: 1rpx solid #e2ece0;
   border-radius: 14rpx;
   background: #ffffff;
@@ -1453,12 +1585,13 @@ export default {
 
 .editable-row {
   align-items: start;
+  min-height: 184rpx;
 }
 
 .editable-row > .draft-input,
 .goods-field,
 .subtotal-cell {
-  min-height: 76rpx;
+  min-height: 168rpx;
   padding: 8rpx 6rpx;
   box-sizing: border-box;
 }
@@ -1476,7 +1609,8 @@ export default {
   left: 6rpx;
   right: 6rpx;
   top: 70rpx;
-  z-index: 20;
+  z-index: 80;
+  max-height: 300rpx;
 }
 
 .number-input {
@@ -1593,6 +1727,10 @@ export default {
   padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
 }
 /* #endif */
+
+.ai-page.keyboard-open .composer-shell {
+  padding-bottom: 8rpx;
+}
 
 .composer-card {
   display: flex;
@@ -1726,4 +1864,153 @@ export default {
   font-size: 20rpx;
   font-weight: 800;
 }
+
+.voice-record-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 28rpx calc(34rpx + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.66);
+}
+
+.voice-record-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 520rpx;
+  width: 560rpx;
+  height: 142rpx;
+  margin-left: -280rpx;
+  border-radius: 34rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #8df06b;
+}
+
+.voice-record-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -28rpx;
+  width: 56rpx;
+  height: 56rpx;
+  margin-left: -28rpx;
+  border-radius: 10rpx;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.voice-record-bubble.cancel {
+  left: 190rpx;
+  width: 150rpx;
+  height: 150rpx;
+  margin-left: 0;
+  border-radius: 30rpx;
+  background: #ff5057;
+}
+
+.wave-bars {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  height: 42rpx;
+}
+
+.wave-bar {
+  width: 7rpx;
+  height: 18rpx;
+  border-radius: 999rpx;
+  background: rgba(20, 68, 55, 0.8);
+  animation: voice-wave 620ms ease-in-out infinite;
+}
+
+.wave-bar:nth-child(2),
+.wave-bar:nth-child(8) {
+  animation-delay: 80ms;
+}
+
+.wave-bar:nth-child(3),
+.wave-bar:nth-child(7) {
+  animation-delay: 160ms;
+}
+
+.wave-bar:nth-child(4),
+.wave-bar:nth-child(6) {
+  animation-delay: 240ms;
+}
+
+.wave-bar:nth-child(5) {
+  animation-delay: 320ms;
+}
+
+.voice-record-panel {
+  position: relative;
+  min-height: 360rpx;
+  padding-top: 36rpx;
+}
+
+.voice-record-hint {
+  height: 72rpx;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 32rpx;
+  font-weight: 900;
+  text-align: center;
+}
+
+.voice-record-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 34rpx;
+  align-items: center;
+}
+
+.voice-record-action {
+  height: 148rpx;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 34rpx;
+  font-weight: 900;
+  transform: rotate(-8deg);
+}
+
+.voice-record-action.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2724;
+}
+
+.text-action {
+  transform: rotate(8deg);
+}
+
+.voice-record-bottom {
+  margin-top: 46rpx;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 32rpx;
+  font-weight: 900;
+  text-align: center;
+}
+
+@keyframes voice-wave {
+  0%,
+  100% {
+    height: 12rpx;
+  }
+  50% {
+    height: 38rpx;
+  }
+}
+
 </style>

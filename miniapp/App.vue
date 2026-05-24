@@ -15,12 +15,16 @@ export default {
     }
     // #endif
 
-    // APP 冷启动默认先进登录页；本地已有 token 时先进入业务页。
-    // 如果 token 已过期，后续接口返回 401 会统一清理登录态并回到登录页。
+    // APP 原生 tabBar 会按 pages 与 tabBar 的顺序建立页面映射。
+    // 冷启动时进入第一个 tab，避免 reLaunch 到非首个 tab 导致 APK 里 tab 选中态错位。
     // #ifdef APP-PLUS
     if (getToken()) {
       setTimeout(() => {
-        uni.reLaunch({ url: '/pages/order/index' })
+        uni.switchTab({ url: '/pages/ai/index' })
+      }, 0)
+    } else {
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/login/index' })
       }, 0)
     }
     // #endif

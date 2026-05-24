@@ -63,6 +63,19 @@ export function sendAiMessage(socketTask, messages, content, context = {}) {
   })
 }
 
+export function sendAiMessageHttp(messages, content, context = {}) {
+  return request({
+    url: '/api/ai/chat',
+    method: 'POST',
+    data: {
+      content,
+      messages,
+      context
+    },
+    timeout: 60000
+  })
+}
+
 export function speechToText(payload) {
   return request({
     url: '/api/ai/speech-to-text',
@@ -103,13 +116,36 @@ export function readFileAsBase64(filePath) {
     // #endif
 
     // #ifdef APP-PLUS
-    const reader = new plus.io.FileReader()
-    reader.onloadend = (event) => {
-      const result = String(event.target.result || '')
-      resolve(result.replace(/^data:[^;]+;base64,/, ''))
+    const readByPath = () => {
+      const reader = new plus.io.FileReader()
+      reader.onloadend = (event) => {
+        const result = String(event.target.result || '')
+        const base64 = result.replace(/^data:[^;]+;base64,/, '')
+        if (!base64) {
+          reject(new Error('录音文件读取为空'))
+          return
+        }
+        resolve(base64)
+      }
+      reader.onerror = () => reject(new Error('录音文件读取失败'))
+      reader.readAsDataURL(filePath)
     }
-    reader.onerror = reject
-    reader.readAsDataURL(filePath)
+    plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
+      entry.file((file) => {
+        const reader = new plus.io.FileReader()
+        reader.onloadend = (event) => {
+          const result = String(event.target.result || '')
+          const base64 = result.replace(/^data:[^;]+;base64,/, '')
+          if (!base64) {
+            reject(new Error('录音文件读取为空'))
+            return
+          }
+          resolve(base64)
+        }
+        reader.onerror = readByPath
+        reader.readAsDataURL(file)
+      }, readByPath)
+    }, readByPath)
     // #endif
 
     // #ifdef H5
