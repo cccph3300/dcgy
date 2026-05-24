@@ -59,6 +59,25 @@ function getVoiceFormat(value: unknown) {
   return 'aac'
 }
 
+function detectVoiceFormat(audioData: Buffer, fallback: string) {
+  if (audioData.length >= 12) {
+    const head4 = audioData.subarray(0, 4).toString('ascii')
+    const brand = audioData.subarray(4, 12).toString('ascii')
+    if (head4 === 'RIFF') return 'wav'
+    if (head4 === 'OggS') return 'ogg-opus'
+    if (brand.includes('ftyp')) return 'm4a'
+  }
+  if (audioData.length >= 3) {
+    if (audioData.subarray(0, 3).toString('ascii') === 'ID3') return 'mp3'
+    if (audioData[0] === 0xff && (audioData[1] & 0xe0) === 0xe0) return 'mp3'
+  }
+  if (audioData.length >= 2) {
+    if (audioData[0] === 0xff && (audioData[1] & 0xf0) === 0xf0) return 'aac'
+    if (audioData[0] === 0x23 && audioData[1] === 0x21) return 'silk'
+  }
+  return fallback
+}
+
 function normalizeAudioKey(value: unknown) {
   const raw = String(value || '').trim()
   return raw.replace(/[^\w.-]/g, '').slice(0, 64) || `dcgy-${Date.now()}`
@@ -73,7 +92,8 @@ async function callTencentAsr(options: { audioBase64: string, voiceFormat: strin
     throw createError({ statusCode: 413, statusMessage: '音频不能超过 5MB，请缩短录音时间' })
   }
 
-  const voiceFormat = getVoiceFormat(options.voiceFormat)
+  const requestedFormat = getVoiceFormat(options.voiceFormat)
+  const voiceFormat = detectVoiceFormat(audioData, requestedFormat)
   if (!SUPPORTED_VOICE_FORMATS.has(voiceFormat)) {
     throw createError({ statusCode: 400, statusMessage: `暂不支持该音频格式：${voiceFormat}` })
   }

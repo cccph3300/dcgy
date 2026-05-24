@@ -11,13 +11,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: '缺少操作凭证' })
   }
 
-  const order = await confirmAiOperation(token, staff.id, {
+  const result = await confirmAiOperation(token, staff.id, {
     customerId: Number(body?.customerId || 0),
     customerName: String(body?.customerName || '').trim(),
     items: body?.items
   })
   return {
     success: true,
-    order
+    order: result,
+    result
   }
 })

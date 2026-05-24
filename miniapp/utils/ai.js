@@ -116,7 +116,7 @@ export function readFileAsBase64(filePath) {
     // #endif
 
     // #ifdef APP-PLUS
-    const readByPath = () => {
+    const readDataUrl = (target) => {
       const reader = new plus.io.FileReader()
       reader.onloadend = (event) => {
         const result = String(event.target.result || '')
@@ -128,22 +128,14 @@ export function readFileAsBase64(filePath) {
         resolve(base64)
       }
       reader.onerror = () => reject(new Error('录音文件读取失败'))
-      reader.readAsDataURL(filePath)
+      reader.readAsDataURL(target)
+    }
+    const readByPath = () => {
+      readDataUrl(filePath)
     }
     plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
       entry.file((file) => {
-        const reader = new plus.io.FileReader()
-        reader.onloadend = (event) => {
-          const result = String(event.target.result || '')
-          const base64 = result.replace(/^data:[^;]+;base64,/, '')
-          if (!base64) {
-            reject(new Error('录音文件读取为空'))
-            return
-          }
-          resolve(base64)
-        }
-        reader.onerror = readByPath
-        reader.readAsDataURL(file)
+        readDataUrl(file)
       }, readByPath)
     }, readByPath)
     // #endif

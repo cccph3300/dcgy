@@ -64,7 +64,29 @@ type AppendOrderAction = CreateOrderAction & {
   }
 }
 
-type AiAction = QueryOrdersAction | QueryTableAction | CreateOrderAction | AppendOrderAction
+type GoodsMutationOperation = 'delete' | 'clear' | 'increase' | 'set' | 'create'
+
+type GoodsMutationDraft = {
+  operation: GoodsMutationOperation
+  goodsId?: number
+  goodsName: string
+  quantity?: number | null
+  unitType?: 'weight' | 'qty'
+  salePrice?: number | null
+  costPrice?: number | null
+  defaultCommission?: number | null
+}
+
+type GoodsMutationAction = {
+  kind: 'goods_mutation'
+  title: string
+  summary: string
+  token: string
+  mutation: GoodsMutationDraft
+  table: AiTable
+}
+
+type AiAction = QueryOrdersAction | QueryTableAction | CreateOrderAction | AppendOrderAction | GoodsMutationAction
 
 type AiDataResult = {
   handled: boolean
@@ -128,10 +150,11 @@ type DraftItem = {
 }
 
 type DraftPayload = {
-  kind: 'create_order' | 'append_order'
+  kind: 'create_order' | 'append_order' | 'goods_mutation'
   staffId: number
   expiresAt: string
   orderId?: number
+  goodsMutation?: GoodsMutationDraft
 }
 
 type ParsedDraft = {
@@ -403,8 +426,10 @@ function isInventoryQuery(text: string) {
 
 function isInventoryMutation(text: string) {
   const normalized = normalizeCompact(text)
-  return new RegExp(`(${INVENTORY_MUTATION_WORDS})`).test(normalized) &&
-    (new RegExp(`(${INVENTORY_WORDS})`).test(normalized) || new RegExp(`(${PRODUCT_WORDS})`).test(normalized))
+  if (!new RegExp(`(${INVENTORY_MUTATION_WORDS})`).test(normalized)) return false
+  return new RegExp(`(${INVENTORY_WORDS})`).test(normalized) ||
+    new RegExp(`(${PRODUCT_WORDS})`).test(normalized) ||
+    /[\u4e00-\u9fa5A-Za-z0-9]{1,30}(入库|补货|加库存|增加库存|清空|清零|归零|删除|删掉|移除|停用|改库存|设库存|设置库存)/.test(normalized)
 }
 
 function isDebtQuery(text: string) {
@@ -427,6 +452,49 @@ function extractGoodsQueryName(text: string) {
     .trim()
 }
 
+function parseChineseNumber(value: string) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return null
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) return Number(normalized)
+  const map: Record<string, number> = {
+    零: 0,
+    一: 1,
+    两: 2,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9
+  }
+  if (normalized === '十') return 10
+  const tenMatch = normalized.match(/^([一两二三四五六七八九])?十([一两二三四五六七八九])?$/)
+  if (tenMatch) {
+    return (tenMatch[1] ? map[tenMatch[1]] : 1) * 10 + (tenMatch[2] ? map[tenMatch[2]] : 0)
+  }
+  return map[normalized] ?? null
+}
+
+function extractNumberByPattern(text: string, pattern: RegExp) {
+  const match = text.match(pattern)
+  if (!match?.[1]) return null
+  return parseChineseNumber(match[1])
+}
+
+function inferUnitTypeFromText(text: string) {
+  return /(每斤|斤|公斤|千克|kg|KG|称重)/.test(text) ? 'weight' : 'qty'
+}
+
+function cleanInventoryGoodsName(text: string) {
+  return normalizeGoodsName(text
+    .replace(new RegExp(`(${INVENTORY_MUTATION_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), ' ')
+    .replace(/(?:每件|一件|每个|一个|每斤|一斤|售价|卖价|价格|单价|成本|成本价|佣金|默认佣金)\s*[一两二三四五六七八九十\d]+(?:\.\d+)?\s*(?:元|块钱|块)?/g, ' ')
+    .replace(/[一两二三四五六七八九十\d]+(?:\.\d+)?\s*(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG)/g, ' ')
+    .replace(/^[一两二三四五六七八九十]+/, ' '))
+}
+
 function extractInventoryMutation(content: string) {
   const normalized = normalizeText(content)
   const compact = normalizeCompact(content)
@@ -439,13 +507,14 @@ function extractInventoryMutation(content: string) {
         : /(改库存|设库存|设置库存|库存改成|库存设为)/.test(compact)
           ? 'set'
           : ''
-  const quantityMatch = normalized.match(/(\d+(?:\.\d+)?)(?:件|个|箱|包|筐|袋)?/)
-  const quantity = quantityMatch ? Number(quantityMatch[1]) : null
-  const goodsName = normalizeGoodsName(normalized
-    .replace(new RegExp(`(${INVENTORY_MUTATION_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), ' ')
-    .replace(/\d+(?:\.\d+)?(?:件|个|箱|包|筐|袋)?/g, ' '))
+  const quantity = extractNumberByPattern(normalized, /([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG)/)
+  const salePrice = extractNumberByPattern(normalized, /(?:每件|一件|每个|一个|每斤|一斤|售价|卖价|价格|单价)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
+  const costPrice = extractNumberByPattern(normalized, /(?:成本|成本价)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
+  const defaultCommission = extractNumberByPattern(normalized, /(?:佣金|默认佣金)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
+  const unitType = inferUnitTypeFromText(normalized)
+  const goodsName = cleanInventoryGoodsName(normalized)
 
-  return { operation, goodsName, quantity }
+  return { operation, goodsName, quantity, salePrice, costPrice, defaultCommission, unitType }
 }
 
 function extractSupermarketName(text: string) {
@@ -682,8 +751,7 @@ function buildQueryAction(orders: Array<{
       status: order.status,
       totalAmount: Number(order.totalAmount || 0)
     })),
-    table: buildTable(title, ['订单号', '客户', '状态', '时间', '金额', '佣金', '利润'], orders.map(order => [
-      order.orderNo,
+    table: buildTable(title, ['客户', '状态', '时间', '金额', '佣金', '利润'], orders.map(order => [
       order.customerName,
       statusText(order.status),
       formatOrderTime(order.createdAt),
@@ -758,6 +826,49 @@ function buildAppendAction(payload: DraftPayload, order: OrderWithItems, items: 
     goodsAmount,
     commission,
     rowCount: items.length
+  }
+}
+
+function goodsMutationOperationText(operation: GoodsMutationOperation) {
+  const map: Record<GoodsMutationOperation, string> = {
+    delete: '删除商品',
+    clear: '库存清零',
+    increase: '入库',
+    set: '设置库存',
+    create: '新增商品'
+  }
+  return map[operation] || '库存操作'
+}
+
+function buildGoodsMutationAction(payload: DraftPayload, mutation: GoodsMutationDraft): GoodsMutationAction {
+  const operationText = goodsMutationOperationText(mutation.operation)
+  const quantityText = mutation.quantity === null || mutation.quantity === undefined ? '-' : formatDecimal(mutation.quantity)
+  const unitText = mutation.unitType === 'weight' ? '称重' : '计件'
+  const summary = mutation.operation === 'delete'
+    ? `请确认是否删除库存商品“${mutation.goodsName}”，确认前不会改动库存。`
+    : mutation.operation === 'clear'
+      ? `请确认是否把“${mutation.goodsName}”库存清零，确认前不会改动库存。`
+      : mutation.operation === 'set'
+        ? `请确认是否把“${mutation.goodsName}”库存设置为 ${quantityText}，确认前不会改动库存。`
+        : mutation.operation === 'create'
+          ? `请确认是否新增库存商品“${mutation.goodsName}”并入库 ${quantityText}，确认前不会改动库存。`
+          : `请确认是否给“${mutation.goodsName}”入库 ${quantityText}，确认前不会改动库存。`
+
+  return {
+    kind: 'goods_mutation',
+    title: operationText,
+    summary,
+    token: signDraft(payload),
+    mutation,
+    table: buildTable(operationText, ['操作', '商品', '数量', '类型', '售价', '佣金', '成本'], [[
+      operationText,
+      mutation.goodsName,
+      quantityText,
+      unitText,
+      mutation.salePrice === null || mutation.salePrice === undefined ? '-' : `￥${formatDecimal(mutation.salePrice)}`,
+      mutation.defaultCommission === null || mutation.defaultCommission === undefined ? '-' : `￥${formatDecimal(mutation.defaultCommission)}`,
+      mutation.costPrice === null || mutation.costPrice === undefined ? '-' : `￥${formatDecimal(mutation.costPrice)}`
+    ]])
   }
 }
 
@@ -1034,7 +1145,7 @@ async function findSingleGoodsForMutation(goodsName: string) {
     take: 6
   })
   if (matched.length === 1) return { goods: matched[0] }
-  if (!matched.length) return { error: `没有找到“${goodsName}”库存。` }
+  if (!matched.length) return { error: `没有找到“${goodsName}”库存。`, notFound: true }
 
   const rows = matched.map(item => [
     item.name,
@@ -1051,50 +1162,59 @@ async function findSingleGoodsForMutation(goodsName: string) {
   }
 }
 
-async function answerInventoryMutationQuestion(content: string): Promise<AiDataResult> {
+async function answerInventoryMutationQuestion(content: string, staffId: number): Promise<AiDataResult> {
   if (!isInventoryMutation(content)) return { handled: false }
+  if (!staffId) return { handled: true, answer: '请先登录后再操作库存。' }
 
   const parsed = extractInventoryMutation(content)
+  if (!parsed.operation) return { handled: true, answer: '请说明要删除、清零、入库还是设置库存。' }
+
+  if ((parsed.operation === 'increase' || parsed.operation === 'set') && (!parsed.quantity || parsed.quantity <= 0)) {
+    return { handled: true, answer: `请告诉“${parsed.goodsName || '这个商品'}”要${parsed.operation === 'set' ? '设置为' : '增加'}多少库存。` }
+  }
+
   const target = await findSingleGoodsForMutation(parsed.goodsName)
   if ('error' in target) {
+    if (target.notFound && parsed.operation === 'increase' && parsed.goodsName) {
+      const mutation: GoodsMutationDraft = {
+        operation: 'create',
+        goodsName: parsed.goodsName,
+        quantity: parsed.quantity || 0,
+        unitType: parsed.unitType === 'weight' ? 'weight' : 'qty',
+        salePrice: parsed.salePrice ?? parsed.costPrice ?? 0,
+        costPrice: parsed.costPrice ?? parsed.salePrice ?? 0,
+        defaultCommission: parsed.defaultCommission ?? 0
+      }
+      const action = buildGoodsMutationAction({
+        kind: 'goods_mutation',
+        staffId,
+        expiresAt: new Date(Date.now() + AI_OPERATION_TTL_MS).toISOString(),
+        goodsMutation: mutation
+      }, mutation)
+      return { handled: true, answer: action.summary, action }
+    }
     return { handled: true, answer: target.error, action: target.action }
   }
 
   const goods = target.goods
-  if (parsed.operation === 'delete') {
-    await prisma.goods.update({ where: { id: goods.id }, data: { enabled: false } })
-    return { handled: true, answer: `已删除库存商品“${goods.name}”。` }
+  const mutation: GoodsMutationDraft = {
+    operation: parsed.operation,
+    goodsId: goods.id,
+    goodsName: goods.name,
+    quantity: parsed.quantity,
+    unitType: parsed.unitType === 'weight' ? 'weight' : 'qty',
+    salePrice: parsed.salePrice,
+    costPrice: parsed.costPrice,
+    defaultCommission: parsed.defaultCommission
   }
+  const action = buildGoodsMutationAction({
+    kind: 'goods_mutation',
+    staffId,
+    expiresAt: new Date(Date.now() + AI_OPERATION_TTL_MS).toISOString(),
+    goodsMutation: mutation
+  }, mutation)
 
-  if (parsed.operation === 'clear') {
-    await prisma.goods.update({ where: { id: goods.id }, data: { stock: 0 } })
-    return { handled: true, answer: `已把“${goods.name}”库存清零。` }
-  }
-
-  if ((parsed.operation === 'increase' || parsed.operation === 'set') && (!parsed.quantity || parsed.quantity <= 0)) {
-    return { handled: true, answer: `请告诉“${goods.name}”要${parsed.operation === 'set' ? '设置为' : '增加'}多少库存。` }
-  }
-
-  if (parsed.operation === 'increase') {
-    const updated = await prisma.goods.update({
-      where: { id: goods.id },
-      data: {
-        stock: { increment: parsed.quantity || 0 },
-        arrivedAt: new Date()
-      }
-    })
-    return { handled: true, answer: `已给“${goods.name}”入库 ${formatDecimal(parsed.quantity || 0)}，当前库存 ${formatDecimal(updated.stock)}。` }
-  }
-
-  if (parsed.operation === 'set') {
-    const updated = await prisma.goods.update({
-      where: { id: goods.id },
-      data: { stock: parsed.quantity || 0 }
-    })
-    return { handled: true, answer: `已把“${goods.name}”库存设置为 ${formatDecimal(updated.stock)}。` }
-  }
-
-  return { handled: true, answer: '请说明要删除、清零、入库还是设置库存。' }
+  return { handled: true, answer: action.summary, action }
 }
 
 async function answerDebtQuestion(plan: AiStructuredIntent): Promise<AiDataResult> {
@@ -1544,6 +1664,9 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
     }
   }
 
+  const inventoryMutationResult = await answerInventoryMutationQuestion(content, staffId)
+  if (inventoryMutationResult.handled) return inventoryMutationResult
+
   if (dataContext?.structuredIntent) {
     const needsContext = dataContext.structuredIntent.intent === 'append_order' || dataContext.structuredIntent.intent === 'create_order'
     const context = needsContext ? await ensureConversationContext() : {}
@@ -1571,9 +1694,6 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
       answer: intentPlan.questionToUser || '这条指令还缺少必要信息，请补充后我再操作。'
     }
   }
-
-  const inventoryMutationResult = await answerInventoryMutationQuestion(content)
-  if (inventoryMutationResult.handled) return inventoryMutationResult
 
   const inventoryResult = await answerInventoryQuestion(content)
   if (inventoryResult.handled) return inventoryResult
@@ -1721,6 +1841,89 @@ async function appendOrderFromDraft(orderId: number, editable?: { items?: unknow
   })
 }
 
+async function confirmGoodsMutationFromDraft(mutation: GoodsMutationDraft) {
+  const operation = mutation.operation
+  if (!operation) {
+    throw createError({ statusCode: 400, statusMessage: '缺少库存操作类型' })
+  }
+
+  const goodsName = String(mutation.goodsName || '').trim()
+  if (!goodsName) {
+    throw createError({ statusCode: 400, statusMessage: '缺少库存商品名称' })
+  }
+
+  const quantity = Number(mutation.quantity || 0)
+  const unitType = mutation.unitType === 'weight' ? 'weight' : 'qty'
+  const pricePatch = {
+    ...(mutation.costPrice !== null && mutation.costPrice !== undefined ? { costPrice: Number(mutation.costPrice) } : {}),
+    ...(mutation.salePrice !== null && mutation.salePrice !== undefined ? { salePrice: Number(mutation.salePrice) } : {}),
+    ...(mutation.defaultCommission !== null && mutation.defaultCommission !== undefined ? { defaultCommission: Number(mutation.defaultCommission) } : {})
+  }
+
+  if (operation === 'create') {
+    if (quantity <= 0) throw createError({ statusCode: 400, statusMessage: '新增库存数量必须大于 0' })
+    const created = await prisma.goods.create({
+      data: {
+        name: goodsName,
+        unitType,
+        stock: quantity,
+        salePrice: Number(mutation.salePrice ?? mutation.costPrice ?? 0),
+        costPrice: Number(mutation.costPrice ?? mutation.salePrice ?? 0),
+        defaultCommission: Number(mutation.defaultCommission ?? 0),
+        arrivedAt: new Date(),
+        enabled: true
+      }
+    })
+    return { type: 'goods_mutation', goods: created, message: `已新增“${created.name}”，当前库存 ${formatDecimal(created.stock)}。` }
+  }
+
+  const goodsId = Number(mutation.goodsId || 0)
+  if (!goodsId) {
+    throw createError({ statusCode: 400, statusMessage: '缺少库存商品 ID' })
+  }
+
+  if (operation === 'delete') {
+    const updated = await prisma.goods.update({ where: { id: goodsId }, data: { enabled: false } })
+    return { type: 'goods_mutation', goods: updated, message: `已删除库存商品“${updated.name}”。` }
+  }
+
+  if (operation === 'clear') {
+    const updated = await prisma.goods.update({ where: { id: goodsId }, data: { stock: 0 } })
+    return { type: 'goods_mutation', goods: updated, message: `已把“${updated.name}”库存清零。` }
+  }
+
+  if ((operation === 'increase' || operation === 'set') && quantity <= 0) {
+    throw createError({ statusCode: 400, statusMessage: '库存数量必须大于 0' })
+  }
+
+  if (operation === 'increase') {
+    const updated = await prisma.goods.update({
+      where: { id: goodsId },
+      data: {
+        stock: { increment: quantity },
+        unitType,
+        ...pricePatch,
+        arrivedAt: new Date()
+      }
+    })
+    return { type: 'goods_mutation', goods: updated, message: `已给“${updated.name}”入库 ${formatDecimal(quantity)}，当前库存 ${formatDecimal(updated.stock)}。` }
+  }
+
+  if (operation === 'set') {
+    const updated = await prisma.goods.update({
+      where: { id: goodsId },
+      data: {
+        stock: quantity,
+        unitType,
+        ...pricePatch
+      }
+    })
+    return { type: 'goods_mutation', goods: updated, message: `已把“${updated.name}”库存设置为 ${formatDecimal(updated.stock)}。` }
+  }
+
+  throw createError({ statusCode: 400, statusMessage: '不支持的库存操作类型' })
+}
+
 export async function confirmAiOperation(token: string, staffId: number, editable?: { customerName?: string, customerId?: number, items?: unknown }) {
   const draft = verifyDraft(token)
   if (!draft) {
@@ -1738,6 +1941,9 @@ export async function confirmAiOperation(token: string, staffId: number, editabl
   }
   if (draft.kind === 'append_order' && draft.orderId) {
     return appendOrderFromDraft(draft.orderId, editable)
+  }
+  if (draft.kind === 'goods_mutation' && draft.goodsMutation) {
+    return confirmGoodsMutationFromDraft(draft.goodsMutation)
   }
 
   throw createError({ statusCode: 400, statusMessage: '不支持的 AI 操作类型' })

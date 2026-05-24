@@ -45,12 +45,16 @@ export default defineWebSocketHandler({
     try {
       validateAiChatInput(input)
       sendJson(peer, { type: 'start' })
+      let streamed = false
       const result = await answerAiChat(input, peer.context.staff.id, {
-        onDelta: content => sendJson(peer, { type: 'delta', content })
+        onDelta: content => {
+          streamed = true
+          sendJson(peer, { type: 'delta', content })
+        }
       })
       sendJson(peer, {
         type: 'result',
-        content: result.content,
+        content: streamed ? '' : result.content,
         action: result.action
       })
       sendJson(peer, { type: 'done' })

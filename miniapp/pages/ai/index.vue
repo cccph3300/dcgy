@@ -72,62 +72,64 @@
                 </view>
               </scroll-view>
 
-              <view class="editable-table">
-                <view class="editable-head">
-                  <text>品名</text>
-                  <text>件数</text>
-                  <text>重量</text>
-                  <text>价格</text>
-                  <text>佣金</text>
-                  <text>小计</text>
-                </view>
-                <view v-for="(item, rowIndex) in message.action.items" :key="item.rowKey" class="editable-row">
-                  <view class="goods-field">
-                    <input
-                      v-model="item.goodsName"
-                      class="draft-input goods-input"
-                      placeholder="品名"
-                      :data-action-id="message.id"
-                      :data-row-index="rowIndex"
-                      @input="onDraftGoodsInput"
-                      @focus="searchDraftGoods"
-                    />
-                    <scroll-view
-                      v-if="item.goodsSuggestions.length"
-                      class="draft-suggest-list goods-suggest-list"
-                      scroll-y
-                      enhanced
-                    >
-                      <view
-                        v-for="(goods, goodsIndex) in item.goodsSuggestions"
-                        :key="goods.id"
-                        class="draft-suggest-item"
+              <scroll-view class="editable-scroll" scroll-x :show-scrollbar="true" enhanced>
+                <view class="editable-table">
+                  <view class="editable-head">
+                    <text>品名</text>
+                    <text>件数</text>
+                    <text>重量</text>
+                    <text>价格</text>
+                    <text>佣金</text>
+                    <text>小计</text>
+                  </view>
+                  <view v-for="(item, rowIndex) in message.action.items" :key="item.rowKey" class="editable-row" :class="{ expanded: item.goodsSuggestions.length }">
+                    <view class="goods-field">
+                      <input
+                        v-model="item.goodsName"
+                        class="draft-input goods-input"
+                        placeholder="品名"
                         :data-action-id="message.id"
                         :data-row-index="rowIndex"
-                        :data-goods-index="goodsIndex"
-                        @click="selectDraftGoods"
+                        @input="onDraftGoodsInput"
+                        @focus="searchDraftGoods"
+                      />
+                      <scroll-view
+                        v-if="item.goodsSuggestions.length"
+                        class="draft-suggest-list goods-suggest-list"
+                        scroll-y
+                        enhanced
                       >
-                        {{ goods.name }}
-                      </view>
-                    </scroll-view>
-                  </view>
-                  <input v-model="item.quantity" class="draft-input number-input" type="digit" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
-                  <input v-model="item.weight" class="draft-input number-input" type="digit" placeholder="-" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
-                  <input v-model="item.price" class="draft-input number-input" type="digit" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
-                  <input v-model="item.commission" class="draft-input number-input" type="digit" placeholder="-" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
-                  <view class="subtotal-cell">
-                    <text>￥{{ money(item.subtotal) }}</text>
-                    <button v-if="message.action.items.length > 1" class="row-delete" :data-action-id="message.id" :data-row-index="rowIndex" @click="removeDraftItem">删</button>
+                        <view
+                          v-for="(goods, goodsIndex) in item.goodsSuggestions"
+                          :key="goods.id"
+                          class="draft-suggest-item"
+                          :data-action-id="message.id"
+                          :data-row-index="rowIndex"
+                          :data-goods-index="goodsIndex"
+                          @click="selectDraftGoods"
+                        >
+                          {{ goods.name }}
+                        </view>
+                      </scroll-view>
+                    </view>
+                    <input v-model="item.quantity" class="draft-input number-input" type="digit" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
+                    <input v-model="item.weight" class="draft-input number-input" type="digit" placeholder="-" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
+                    <input v-model="item.price" class="draft-input number-input" type="digit" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
+                    <input v-model="item.commission" class="draft-input number-input" type="digit" placeholder="-" :data-action-id="message.id" :data-row-index="rowIndex" @input="updateDraftItem" />
+                    <view class="subtotal-cell">
+                      <text>￥{{ money(item.subtotal) }}</text>
+                      <button v-if="message.action.items.length > 1" class="row-delete" :data-action-id="message.id" :data-row-index="rowIndex" @click="removeDraftItem">删</button>
+                    </view>
                   </view>
                 </view>
-              </view>
+              </scroll-view>
             </view>
 
             <view v-else class="table-wrap">
-              <view class="table-row table-head">
+              <view class="table-row table-head" :class="message.action.tableClass">
                 <text v-for="col in message.action.table.columns" :key="col" class="table-cell">{{ col }}</text>
               </view>
-              <view v-for="(row, rowIndex) in message.action.table.rows" :key="rowIndex" class="table-row">
+              <view v-for="(row, rowIndex) in message.action.table.rows" :key="rowIndex" class="table-row" :class="message.action.tableClass">
                 <text v-for="(cell, cellIndex) in row" :key="`${rowIndex}-${cellIndex}`" class="table-cell">{{ cell }}</text>
               </view>
             </view>
@@ -138,6 +140,13 @@
                 <button class="mini-action edit" :data-order-id="order.id" @click="editOrder">改单</button>
                 <button class="mini-action delete" :data-action-id="message.id" :data-order-id="order.id" @click="deleteOrder">删单</button>
               </view>
+            </view>
+
+            <view v-if="message.action.kind === 'goods_mutation'" class="mutation-footer">
+              <text class="mutation-warning">请核对后再执行，确认前不会修改库存。</text>
+              <button class="action-button danger" :disabled="message.action.submitting" :data-action-id="message.id" @click="confirmGoodsMutation">
+                {{ message.action.submitting ? '执行中' : '确认操作' }}
+              </button>
             </view>
 
             <view v-if="message.action.kind === 'create_order'" class="action-footer">
@@ -156,7 +165,7 @@
       <view id="message-bottom" class="message-bottom"></view>
     </scroll-view>
 
-    <view class="composer-shell">
+    <view class="composer-shell" :class="{ lifted: keyboardVisible }">
       <view class="composer-card">
         <view v-if="composerMode === 'text'" class="input-row">
           <textarea
@@ -165,7 +174,7 @@
             placeholder="先说内容，再点发送"
             :maxlength="100"
             auto-height
-            :adjust-position="false"
+            :adjust-position="true"
             :show-confirm-bar="false"
             :cursor-spacing="18"
           ></textarea>
@@ -271,6 +280,7 @@ export default {
       aiTimeoutTimer: null,
       scrollReleaseTimer: null,
       keyboardVisible: false,
+      keyboardHeight: 0,
       keyboardHeightHandler: null,
       touchStartY: 0,
       touchStartX: 0,
@@ -317,7 +327,7 @@ export default {
     },
     canLoadMoreHistory() {
       return this.hasMoreHistory && this.messages.length < this.maxMessages
-    }
+    },
   },
   onShow() {
     if (!requireLogin()) return
@@ -328,7 +338,10 @@ export default {
     // #ifdef MP-WEIXIN || APP-PLUS
     if (!this.keyboardHeightHandler && typeof uni.onKeyboardHeightChange === 'function') {
       this.keyboardHeightHandler = (res) => {
-        this.keyboardVisible = Number(res?.height || 0) > 0
+        const height = Number(res?.height || 0)
+        this.keyboardHeight = height
+        this.keyboardVisible = height > 0
+        if (height > 0) this.scrollToBottom(true)
       }
       uni.onKeyboardHeightChange(this.keyboardHeightHandler)
     }
@@ -550,7 +563,23 @@ export default {
         })
         // #endif
 
-        // #ifdef APP-PLUS || H5
+        // #ifdef APP-PLUS
+        const permission = 'android.permission.RECORD_AUDIO'
+        if (typeof plus !== 'undefined' && plus.android?.requestPermissions) {
+          plus.android.requestPermissions([permission], (result) => {
+            const denied = [...(result.deniedAlways || []), ...(result.deniedPresent || [])]
+            if (denied.includes(permission)) {
+              reject(new Error('未开启麦克风权限'))
+              return
+            }
+            resolve(true)
+          }, () => reject(new Error('麦克风权限申请失败')))
+          return
+        }
+        resolve(true)
+        // #endif
+
+        // #ifdef H5
         resolve(true)
         // #endif
       })
@@ -691,28 +720,22 @@ export default {
     getNativeRecordOptions() {
       const options = {
         duration: 60000,
-        sampleRate: 16000
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        encodeBitRate: 96000
       }
       // #ifdef APP-PLUS
-      // App 端官方默认格式是 mp3，安卓兼容性比强制 aac 更稳。
+      // App 端录音实际格式会在后端按音频头校验，避免 APK 机型差异导致格式误判。
       options.format = 'mp3'
       // #endif
       // #ifdef MP-WEIXIN
       // 小程序端继续使用原本稳定的 aac，并保留小程序支持的码率参数。
-      options.numberOfChannels = 1
-      options.encodeBitRate = 96000
       options.format = 'aac'
       // #endif
       return options
     },
     getNativeVoiceFormat(filePath) {
-      // #ifdef APP-PLUS
-      return 'mp3'
-      // #endif
-      // #ifdef MP-WEIXIN
       return inferVoiceFormat(filePath || 'record.aac')
-      // #endif
-      return inferVoiceFormat(filePath)
     },
     startNativeRecord() {
       this.ensureRecordPermission()
@@ -972,20 +995,38 @@ export default {
       }
 
       const content = String(payload?.content || '')
-      if (content) message.content += content
+      if (content) {
+        if (payload?.final && message.content) {
+          message.content = this.mergeFinalAssistantContent(message.content, content)
+        } else {
+          message.content += content
+        }
+      }
       if (payload?.action) message.action = this.normalizeAction(payload.action)
       if (payload?.final) message.loading = false
       this.scrollToBottom(true)
     },
+    mergeFinalAssistantContent(current, finalContent) {
+      const currentText = String(current || '')
+      const finalText = String(finalContent || '')
+      if (!currentText) return finalText
+      if (!finalText) return currentText
+      if (finalText.includes(currentText) || currentText.includes(finalText)) return finalText
+      return currentText
+    },
     normalizeAction(action) {
       if (!action) return null
+      const table = action.table || { title: '', columns: [], rows: [] }
+      const tableColumnCount = Math.max(1, Number(table.columns?.length || 1))
+      const tableClass = `cols-${Math.min(tableColumnCount, 7)}`
       if (action.kind === 'create_order') {
         const draft = action.draft || {}
         const items = Array.isArray(draft.items) ? draft.items.map(item => this.buildDraftRow(item)) : []
         const normalized = {
           ...action,
           submitting: false,
-          table: action.table || { title: '', columns: [], rows: [] },
+          table,
+          tableClass,
           customerName: draft.customerName || '客户',
           customerId: null,
           customerSuggestions: [],
@@ -997,7 +1038,8 @@ export default {
       return {
         ...action,
         submitting: false,
-        table: action.table || { title: '', columns: [], rows: [] }
+        table,
+        tableClass
       }
     },
     finishAssistant() {
@@ -1266,6 +1308,28 @@ export default {
         }
       })
     },
+    async confirmGoodsMutation(event) {
+      const action = this.findDraftAction(event)
+      const message = this.messages.find(item => item.action === action)
+      if (!action || action.kind !== 'goods_mutation' || !action.token) return
+      if (action.submitting) return
+
+      action.submitting = true
+      try {
+        const result = await confirmAiOperation(action.token)
+        const messageText = result?.result?.message || result?.order?.message || '库存操作已执行'
+        if (message) {
+          message.content = `${message.content}\n${messageText}`
+          message.action = null
+        }
+        this.goodsLoaded = false
+        uni.showToast({ title: '操作成功', icon: 'success' })
+      } catch (err) {
+        uni.showToast({ title: err?.message || '操作失败', icon: 'none' })
+      } finally {
+        action.submitting = false
+      }
+    },
     scrollToBottom(force = false) {
       this.$nextTick(() => {
         if (this.scrollReleaseTimer) {
@@ -1469,9 +1533,36 @@ export default {
 
 .table-row {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0;
   border-bottom: 1rpx solid #edf2ea;
+}
+
+.table-row.cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.table-row.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.table-row.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.table-row.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.table-row.cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.table-row.cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.table-row.cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .table-row:last-child {
@@ -1552,7 +1643,13 @@ export default {
   box-sizing: border-box;
 }
 
+.editable-scroll {
+  width: 100%;
+  overflow: visible;
+}
+
 .editable-table {
+  width: 860rpx;
   overflow: visible;
   border: 1rpx solid #e2ece0;
   border-radius: 14rpx;
@@ -1562,8 +1659,8 @@ export default {
 .editable-head,
 .editable-row {
   display: grid;
-  grid-template-columns: 172rpx 92rpx 92rpx 92rpx 92rpx 126rpx;
-  min-width: 666rpx;
+  grid-template-columns: 210rpx 110rpx 110rpx 110rpx 110rpx 210rpx;
+  width: 860rpx;
   border-bottom: 1rpx solid #edf2ea;
 }
 
@@ -1588,6 +1685,10 @@ export default {
   min-height: 84rpx;
 }
 
+.editable-row.expanded {
+  min-height: 220rpx;
+}
+
 .editable-row > .draft-input,
 .goods-field,
 .subtotal-cell {
@@ -1598,7 +1699,10 @@ export default {
 
 .goods-field {
   position: relative;
-  min-height: 184rpx;
+}
+
+.editable-row.expanded .goods-field {
+  min-height: 206rpx;
 }
 
 .goods-input {
@@ -1611,7 +1715,7 @@ export default {
   right: 6rpx;
   top: 70rpx;
   z-index: 80;
-  max-height: 300rpx;
+  max-height: 132rpx;
 }
 
 .number-input {
@@ -1630,6 +1734,7 @@ export default {
   color: #166b4e;
   font-size: 20rpx;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .row-delete {
@@ -1669,6 +1774,23 @@ export default {
   color: #ffffff;
   font-size: 26rpx;
   font-weight: 900;
+}
+
+.action-button.danger {
+  background: #d64b3f;
+}
+
+.mutation-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.mutation-warning {
+  color: #8a4b16;
+  font-size: 22rpx;
+  font-weight: 800;
 }
 
 .order-action-list {
@@ -1723,6 +1845,8 @@ export default {
   flex-shrink: 0;
   padding: 0 0 24rpx;
   box-sizing: border-box;
+  transition: transform 180ms ease;
+  will-change: transform;
 }
 
 /* #ifdef H5 || APP-PLUS */
@@ -1732,6 +1856,10 @@ export default {
 /* #endif */
 
 .ai-page.keyboard-open .composer-shell {
+  padding-bottom: 8rpx;
+}
+
+.composer-shell.lifted {
   padding-bottom: 8rpx;
 }
 
