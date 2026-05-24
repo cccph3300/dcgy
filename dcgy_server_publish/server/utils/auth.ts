@@ -28,6 +28,10 @@ function getRequestToken(event: H3Event) {
 
 export async function getCurrentStaff(event: H3Event) {
   const token = getRequestToken(event)
+  return getStaffByToken(token)
+}
+
+export async function getStaffByToken(token?: string | null) {
   if (!token) return null
 
   const session = await prisma.staffSession.findUnique({
