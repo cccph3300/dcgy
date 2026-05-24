@@ -185,6 +185,7 @@ const QUERY_WORDS = '查询|查|看|找|统计|算|输出|列出|显示|汇总|�
 const ORDER_WORDS = '订单|单子|单|记录|明细|出单|下单|拿货|全部订单|所有订单'
 const PRODUCT_WORDS = '产品|商品|货物|水果|苹果|香蕉|榴莲|蓝莓|车厘子|销量|卖得'
 const INVENTORY_WORDS = '库存|存货|剩余|还有多少|缺货|零库存|没货'
+const INVENTORY_MUTATION_WORDS = '删除|删掉|移除|停用|清空|清零|归零|入库|补货|加库存|增加库存|改库存|设库存|设置库存|库存改成|库存设为'
 const DEBT_WORDS = '欠款|欠账|欠帐|未收|未付款|没付款|赊账|客户欠款'
 const PROFIT_WORDS = '利润|盈利|赚了|毛利|成本|销售额|营收'
 const SUPERMARKET_WORDS = '超市|配送|送货|商超'
@@ -400,6 +401,12 @@ function isInventoryQuery(text: string) {
     (new RegExp(`(${PRODUCT_WORDS})`).test(normalized) && new RegExp(`(${QUERY_WORDS})`).test(normalized))
 }
 
+function isInventoryMutation(text: string) {
+  const normalized = normalizeCompact(text)
+  return new RegExp(`(${INVENTORY_MUTATION_WORDS})`).test(normalized) &&
+    (new RegExp(`(${INVENTORY_WORDS})`).test(normalized) || new RegExp(`(${PRODUCT_WORDS})`).test(normalized))
+}
+
 function isDebtQuery(text: string) {
   return new RegExp(`(${DEBT_WORDS})`).test(normalizeCompact(text))
 }
@@ -418,6 +425,27 @@ function extractGoodsQueryName(text: string) {
     .replace(new RegExp(`(${QUERY_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), '')
     .replace(/(今天|昨日|昨天|本月|上月|全部|所有|最近|当前|现在|一下|还有多少|多少)/g, '')
     .trim()
+}
+
+function extractInventoryMutation(content: string) {
+  const normalized = normalizeText(content)
+  const compact = normalizeCompact(content)
+  const operation = /(删除|删掉|移除|停用)/.test(compact)
+    ? 'delete'
+    : /(清空|清零|归零)/.test(compact)
+      ? 'clear'
+      : /(入库|补货|加库存|增加库存)/.test(compact)
+        ? 'increase'
+        : /(改库存|设库存|设置库存|库存改成|库存设为)/.test(compact)
+          ? 'set'
+          : ''
+  const quantityMatch = normalized.match(/(\d+(?:\.\d+)?)(?:件|个|箱|包|筐|袋)?/)
+  const quantity = quantityMatch ? Number(quantityMatch[1]) : null
+  const goodsName = normalizeGoodsName(normalized
+    .replace(new RegExp(`(${INVENTORY_MUTATION_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), ' ')
+    .replace(/\d+(?:\.\d+)?(?:件|个|箱|包|筐|袋)?/g, ' '))
+
+  return { operation, goodsName, quantity }
 }
 
 function extractSupermarketName(text: string) {
@@ -467,6 +495,10 @@ function analyzeAiIntent(content: string, context: AiConversationContext = {}): 
 
   if (isOrderQuery(content)) {
     return { entity: '订单', action: 'query', sqlReady: true, missingFields: [] }
+  }
+
+  if (isInventoryMutation(content)) {
+    return { entity: '商品', action: 'query', sqlReady: true, missingFields: [] }
   }
 
   if (isInventoryQuery(content) || isDebtQuery(content) || isProfitQuery(content) || isSupermarketOrderQuery(content)) {
@@ -984,6 +1016,87 @@ async function answerGoodsQuestion(plan: AiStructuredIntent, content: string): P
   }
 }
 
+async function findSingleGoodsForMutation(goodsName: string) {
+  if (!goodsName) {
+    return { error: '请告诉我要操作哪个库存商品，例如“删除蓝莓库存”或“蓝莓入库20件”。' }
+  }
+
+  const exact = await prisma.goods.findMany({
+    where: { enabled: true, name: goodsName },
+    orderBy: { updatedAt: 'desc' },
+    take: 2
+  })
+  if (exact.length === 1) return { goods: exact[0] }
+
+  const matched = await prisma.goods.findMany({
+    where: { enabled: true, name: { contains: goodsName } },
+    orderBy: [{ stock: 'desc' }, { updatedAt: 'desc' }],
+    take: 6
+  })
+  if (matched.length === 1) return { goods: matched[0] }
+  if (!matched.length) return { error: `没有找到“${goodsName}”库存。` }
+
+  const rows = matched.map(item => [
+    item.name,
+    item.unitType === 'weight' ? '称重' : '计件',
+    formatDecimal(item.stock),
+    `￥${formatDecimal(item.salePrice)}`,
+    `￥${formatDecimal(item.defaultCommission)}`,
+    `￥${formatDecimal(item.costPrice)}`
+  ])
+  const summary = `找到多个包含“${goodsName}”的库存，先不操作。请说完整品名。`
+  return {
+    error: summary,
+    action: buildTableAction('query_goods', `“${goodsName}”库存候选`, summary, ['商品', '类型', '库存', '售价', '默认佣金', '成本'], rows)
+  }
+}
+
+async function answerInventoryMutationQuestion(content: string): Promise<AiDataResult> {
+  if (!isInventoryMutation(content)) return { handled: false }
+
+  const parsed = extractInventoryMutation(content)
+  const target = await findSingleGoodsForMutation(parsed.goodsName)
+  if ('error' in target) {
+    return { handled: true, answer: target.error, action: target.action }
+  }
+
+  const goods = target.goods
+  if (parsed.operation === 'delete') {
+    await prisma.goods.update({ where: { id: goods.id }, data: { enabled: false } })
+    return { handled: true, answer: `已删除库存商品“${goods.name}”。` }
+  }
+
+  if (parsed.operation === 'clear') {
+    await prisma.goods.update({ where: { id: goods.id }, data: { stock: 0 } })
+    return { handled: true, answer: `已把“${goods.name}”库存清零。` }
+  }
+
+  if ((parsed.operation === 'increase' || parsed.operation === 'set') && (!parsed.quantity || parsed.quantity <= 0)) {
+    return { handled: true, answer: `请告诉“${goods.name}”要${parsed.operation === 'set' ? '设置为' : '增加'}多少库存。` }
+  }
+
+  if (parsed.operation === 'increase') {
+    const updated = await prisma.goods.update({
+      where: { id: goods.id },
+      data: {
+        stock: { increment: parsed.quantity || 0 },
+        arrivedAt: new Date()
+      }
+    })
+    return { handled: true, answer: `已给“${goods.name}”入库 ${formatDecimal(parsed.quantity || 0)}，当前库存 ${formatDecimal(updated.stock)}。` }
+  }
+
+  if (parsed.operation === 'set') {
+    const updated = await prisma.goods.update({
+      where: { id: goods.id },
+      data: { stock: parsed.quantity || 0 }
+    })
+    return { handled: true, answer: `已把“${goods.name}”库存设置为 ${formatDecimal(updated.stock)}。` }
+  }
+
+  return { handled: true, answer: '请说明要删除、清零、入库还是设置库存。' }
+}
+
 async function answerDebtQuestion(plan: AiStructuredIntent): Promise<AiDataResult> {
   const customerName = cleanStructuredName(plan.customerName)
   const take = limitedTake(plan.limit, 20, 50)
@@ -1458,6 +1571,9 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
       answer: intentPlan.questionToUser || '这条指令还缺少必要信息，请补充后我再操作。'
     }
   }
+
+  const inventoryMutationResult = await answerInventoryMutationQuestion(content)
+  if (inventoryMutationResult.handled) return inventoryMutationResult
 
   const inventoryResult = await answerInventoryQuestion(content)
   if (inventoryResult.handled) return inventoryResult

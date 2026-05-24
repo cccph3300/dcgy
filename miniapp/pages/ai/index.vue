@@ -1585,19 +1585,20 @@ export default {
 
 .editable-row {
   align-items: start;
-  min-height: 184rpx;
+  min-height: 84rpx;
 }
 
 .editable-row > .draft-input,
 .goods-field,
 .subtotal-cell {
-  min-height: 168rpx;
+  min-height: 76rpx;
   padding: 8rpx 6rpx;
   box-sizing: border-box;
 }
 
 .goods-field {
   position: relative;
+  min-height: 184rpx;
 }
 
 .goods-input {
@@ -1615,6 +1616,8 @@ export default {
 
 .number-input {
   width: calc(100% - 12rpx);
+  height: 58rpx;
+  min-height: 58rpx;
   margin: 8rpx 6rpx;
   text-align: center;
 }
