@@ -70,7 +70,12 @@ export default {
 
 <style scoped>
 .delivery-home {
+  min-height: 100vh;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 12% 4%, rgba(77, 110, 216, 0.16), transparent 180rpx),
+    radial-gradient(circle at 92% 10%, rgba(111, 88, 201, 0.12), transparent 220rpx),
+    linear-gradient(180deg, #f6f8ff 0%, #eef3ff 100%);
 }
 
 .hero {
@@ -81,21 +86,21 @@ export default {
 }
 
 .eyebrow {
-  color: #16945f;
+  color: #4d6ed8;
   font-size: 24rpx;
   font-weight: 900;
 }
 
 .title {
   margin-top: 8rpx;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 44rpx;
   font-weight: 900;
 }
 
 .subtitle {
   margin-top: 6rpx;
-  color: #718078;
+  color: #697597;
   font-size: 24rpx;
 }
 
@@ -106,11 +111,11 @@ export default {
   width: 92rpx;
   height: 92rpx;
   border-radius: 28rpx;
-  background: #16945f;
+  background: linear-gradient(145deg, #4d6ed8 0%, #6f58c9 100%);
   color: #ffffff;
   font-size: 42rpx;
   font-weight: 900;
-  box-shadow: 0 12rpx 24rpx rgba(22, 148, 95, 0.18);
+  box-shadow: 0 12rpx 24rpx rgba(77, 110, 216, 0.26);
 }
 
 .action-grid {
@@ -123,20 +128,22 @@ export default {
 .action-card {
   min-height: 210rpx;
   padding: 22rpx;
-  border: 2rpx solid #d7ead9;
+  border: 2rpx solid #cdd8fb;
   border-radius: 20rpx;
-  background: linear-gradient(145deg, #ffffff 0%, #f0faef 100%);
-  box-shadow: 0 12rpx 26rpx rgba(25, 55, 44, 0.08);
+  background: linear-gradient(145deg, #ffffff 0%, #edf2ff 100%);
+  box-shadow: 0 12rpx 26rpx rgba(52, 73, 140, 0.1);
 }
 
 .action-card.list,
 .action-card.trash {
   margin-top: 36rpx;
-  background: linear-gradient(145deg, #ffffff 0%, #fff9e8 100%);
+  border-color: #e2d4ff;
+  background: linear-gradient(145deg, #ffffff 0%, #f3efff 100%);
 }
 
 .action-card.ocr {
-  background: linear-gradient(145deg, #ffffff 0%, #eef7ff 100%);
+  border-color: #c9dff7;
+  background: linear-gradient(145deg, #ffffff 0%, #eaf6ff 100%);
 }
 
 .action-icon {
@@ -146,20 +153,28 @@ export default {
   width: 62rpx;
   height: 62rpx;
   border-radius: 18rpx;
-  background: #16945f;
+  background: #4d6ed8;
   color: #ffffff;
   font-size: 30rpx;
   font-weight: 900;
 }
 
 .list .action-icon {
-  background: #ffbf3f;
-  color: #17362f;
+  background: #6f58c9;
+  color: #ffffff;
+}
+
+.ocr .action-icon {
+  background: #2f7fc1;
+}
+
+.trash .action-icon {
+  background: #47618f;
 }
 
 .action-title {
   margin-top: 22rpx;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 32rpx;
   font-weight: 900;
 }
@@ -167,12 +182,17 @@ export default {
 .action-desc,
 .rule-row {
   margin-top: 8rpx;
-  color: #718078;
+  color: #697597;
   font-size: 24rpx;
   line-height: 1.45;
 }
 
 .note-card {
-  background: #fffef9;
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #f1f5ff 100%);
+}
+
+.note-card .section-title {
+  color: #1f2f63;
 }
 </style>

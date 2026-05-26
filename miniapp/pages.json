@@ -1,15 +1,15 @@
 {
   "pages": [
     {
-      "path": "pages/ai/index",
-      "style": {
-        "navigationBarTitleText": "AI智能对话"
-      }
-    },
-    {
       "path": "pages/order/index",
       "style": {
         "navigationBarTitleText": "点单"
+      }
+    },
+    {
+      "path": "pages/ai/index",
+      "style": {
+        "navigationBarTitleText": "小东"
       }
     },
     {
@@ -123,6 +123,36 @@
           "path": "customers/index",
           "style": {
             "navigationBarTitleText": "其他/客户列表"
+          }
+        },
+        {
+          "path": "accounts/create",
+          "style": {
+            "navigationBarTitleText": "其他/入账"
+          }
+        },
+        {
+          "path": "accounts/suppliers",
+          "style": {
+            "navigationBarTitleText": "其他/货主"
+          }
+        },
+        {
+          "path": "accounts/records",
+          "style": {
+            "navigationBarTitleText": "其他/入账记录"
+          }
+        },
+        {
+          "path": "accounts/detail",
+          "style": {
+            "navigationBarTitleText": "其他/入账记录/入账详情"
+          }
+        },
+        {
+          "path": "accounts/debt",
+          "style": {
+            "navigationBarTitleText": "其他/货主赊账详情"
           }
         },
         {
@@ -253,16 +283,16 @@
     "borderStyle": "white",
     "list": [
       {
-        "pagePath": "pages/ai/index",
-        "text": "AI",
-        "iconPath": "static/tabbar/ai.png",
-        "selectedIconPath": "static/tabbar/ai-active.png"
-      },
-      {
         "pagePath": "pages/order/index",
         "text": "点单",
         "iconPath": "static/tabbar/order.png",
         "selectedIconPath": "static/tabbar/order-active.png"
+      },
+      {
+        "pagePath": "pages/ai/index",
+        "text": "小东",
+        "iconPath": "static/tabbar/ai.png",
+        "selectedIconPath": "static/tabbar/ai-active.png"
       },
       {
         "pagePath": "pages/orders/index",

@@ -287,4 +287,40 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.fix-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(36, 82, 119, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6fbff 0%, #eef7ff 100%);
+}
+
+.soft-card,
+.filter-card,
+.order-card {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8ff 100%);
+}
+
+.section-title,
+.order-name,
+.pager {
+  color: #17364e;
+}
+
+.order-money,
+.edit-text {
+  color: #245277;
+}
+
+.soft-button:not(.danger),
+.pager-button {
+  background: #e4f0fa;
+  color: #245277;
+}
+
+.primary {
+  background: #245277;
+  color: #ffffff;
+}
 </style>

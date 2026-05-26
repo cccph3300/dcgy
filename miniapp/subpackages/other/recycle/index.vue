@@ -344,4 +344,41 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.recycle-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(36, 82, 119, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6fbff 0%, #eef7ff 100%);
+}
+
+.head-label,
+.empty-icon {
+  color: #245277;
+}
+
+.head-title,
+.empty-title,
+.item-title {
+  color: #17364e;
+}
+
+.soft-card,
+.tip-card,
+.trash-card,
+.empty-state {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8ff 100%);
+}
+
+.empty-icon,
+.view-button,
+.restore-button[disabled] {
+  background: #e4f0fa;
+}
+
+.restore-button {
+  background: #245277;
+  color: #ffffff;
+}
 </style>

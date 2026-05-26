@@ -1,67 +1,62 @@
 <template>
-  <view class="page customers-page">
-    <view class="customer-head">
+  <view class="page suppliers-page">
+    <view class="supplier-head">
       <view>
         <view class="head-label">东成果业</view>
-        <view class="head-title">客户列表</view>
+        <view class="head-title">货主列表</view>
       </view>
       <view class="head-count">{{ filteredCount }}人</view>
     </view>
 
     <view class="soft-card search-card">
       <input
-        class="search-input"
         v-model.trim="keyword"
-        placeholder="搜索客户名称"
+        class="search-input"
+        placeholder="搜索货主名称"
         confirm-type="search"
         @input="handleSearchInput"
-        @confirm="loadCustomers"
+        @confirm="loadSuppliers"
       />
       <button v-if="keyword" class="clear-button" @click="clearSearch">清空</button>
     </view>
 
-    <view v-if="loading" class="soft-card empty">正在读取客户...</view>
+    <view v-if="loading" class="soft-card empty">正在读取货主...</view>
     <view v-else-if="error" class="soft-card empty error">{{ error }}</view>
 
     <view v-else class="list-wrap">
-      <scroll-view
-        class="customer-scroll"
-        scroll-y
-        :scroll-into-view="activeAnchor"
-        scroll-with-animation
-      >
+      <scroll-view class="supplier-scroll" scroll-y :scroll-into-view="activeAnchor" scroll-with-animation>
         <view v-for="group in groups" :key="group.initial" :id="anchorId(group.initial)" class="group-block">
           <view class="group-title">{{ group.initial }}</view>
           <view
-            v-for="customer in group.items"
-            :key="customer.id"
-            class="customer-swipe"
-            @touchstart="touchCustomerStart"
-            @touchend="touchCustomerEnd($event, customer)"
+            v-for="supplier in group.items"
+            :key="supplier.id"
+            class="supplier-swipe"
+            @touchstart="touchSupplierStart"
+            @touchend="touchSupplierEnd($event, supplier)"
           >
-            <button class="delete-button" :disabled="deletingCustomerId === customer.id" @click.stop="confirmDeleteCustomer(customer)">
-              {{ deletingCustomerId === customer.id ? '删除中' : '删除' }}
+            <button class="delete-button" :disabled="deletingSupplierId === supplier.id" @click.stop="confirmDeleteSupplier(supplier)">
+              {{ deletingSupplierId === supplier.id ? '删除中' : '删除' }}
             </button>
             <view
-              class="customer-row"
-              :class="{ swiped: swipedCustomerId === customer.id }"
-              @click="handleCustomerClick(customer)"
+              class="supplier-row"
+              :class="{ swiped: swipedSupplierId === supplier.id }"
+              @click="handleSupplierClick(supplier)"
             >
-              <view class="customer-main">
-                <view class="customer-name">{{ customer.name }}</view>
-                <view class="customer-meta">{{ customer.unpaidOrderCount }}笔未付订单</view>
+              <view class="supplier-main">
+                <view class="supplier-name">{{ supplier.name }}</view>
+                <view class="supplier-meta">{{ supplier.unpaidEntryCount }}笔未付入账</view>
               </view>
-              <view class="debt-box" :class="{ clear: Number(customer.debtAmount || 0) <= 0 }">
+              <view class="debt-box" :class="{ clear: Number(supplier.debtAmount || 0) <= 0 }">
                 <view class="debt-label">欠账</view>
-                <view class="debt-money">¥{{ money(customer.debtAmount) }}</view>
+                <view class="debt-money">¥{{ money(supplier.debtAmount) }}</view>
               </view>
             </view>
           </view>
         </view>
 
         <view v-if="!groups.length" class="soft-card empty-state">
-          <view class="empty-title">暂无客户</view>
-          <view class="empty-text">有客户订单后会在这里显示。</view>
+          <view class="empty-title">暂无货主</view>
+          <view class="empty-text">有入账记录后会在这里显示。</view>
         </view>
       </scroll-view>
 
@@ -90,23 +85,23 @@ export default {
   data() {
     return {
       keyword: '',
-      customers: [],
+      suppliers: [],
       loading: false,
       error: '',
       searchTimer: null,
-      swipedCustomerId: null,
+      swipedSupplierId: null,
       touchStartX: 0,
-      deletingCustomerId: null,
+      deletingSupplierId: null,
       activeAnchor: '',
       letters: LETTERS
     }
   },
   computed: {
     groups() {
-      const map = this.customers.reduce((result, customer) => {
-        const initial = customer.initial || '#'
+      const map = this.suppliers.reduce((result, supplier) => {
+        const initial = supplier.initial || '#'
         if (!result[initial]) result[initial] = []
-        result[initial].push(customer)
+        result[initial].push(supplier)
         return result
       }, {})
       return this.letters
@@ -120,11 +115,11 @@ export default {
       return this.groups.map(group => group.initial)
     },
     filteredCount() {
-      return this.customers.length
+      return this.suppliers.length
     }
   },
   onShow() {
-    if (requireLogin()) this.loadCustomers()
+    if (requireLogin()) this.loadSuppliers()
   },
   onUnload() {
     if (this.searchTimer) clearTimeout(this.searchTimer)
@@ -132,17 +127,15 @@ export default {
   methods: {
     money,
     anchorId(letter) {
-      return `customer-group-${letter === '#' ? 'other' : letter}`
+      return `supplier-group-${letter === '#' ? 'other' : letter}`
     },
     handleSearchInput() {
       if (this.searchTimer) clearTimeout(this.searchTimer)
-      this.searchTimer = setTimeout(() => {
-        this.loadCustomers()
-      }, 260)
+      this.searchTimer = setTimeout(() => this.loadSuppliers(), 260)
     },
     clearSearch() {
       this.keyword = ''
-      this.loadCustomers()
+      this.loadSuppliers()
     },
     jumpTo(letter) {
       if (!this.availableLetters.includes(letter)) return
@@ -151,67 +144,67 @@ export default {
         this.activeAnchor = this.anchorId(letter)
       })
     },
-    touchCustomerStart(event) {
+    touchSupplierStart(event) {
       this.touchStartX = event.changedTouches?.[0]?.clientX || 0
     },
-    touchCustomerEnd(event, customer) {
+    touchSupplierEnd(event, supplier) {
       const endX = event.changedTouches?.[0]?.clientX || 0
       const diff = endX - this.touchStartX
       if (diff < -36) {
-        this.swipedCustomerId = customer.id
+        this.swipedSupplierId = supplier.id
       } else if (diff > 28) {
-        this.swipedCustomerId = null
+        this.swipedSupplierId = null
       }
     },
-    handleCustomerClick(customer) {
-      if (this.swipedCustomerId === customer.id) {
-        this.swipedCustomerId = null
+    handleSupplierClick(supplier) {
+      if (this.swipedSupplierId === supplier.id) {
+        this.swipedSupplierId = null
         return
       }
-      this.openDebt(customer.id)
+      this.openDebt(supplier.id)
     },
     openDebt(id) {
-      uni.navigateTo({ url: `/pages/orders/debt?customerId=${id}` })
+      uni.navigateTo({ url: `/subpackages/other/accounts/debt?supplierId=${id}` })
     },
-    confirmDeleteCustomer(customer) {
+    confirmDeleteSupplier(supplier) {
       uni.showModal({
-        title: '删除客户？',
-        content: `操作不可逆。\n客户：${customer.name}`,
+        title: '删除货主？',
+        content: `操作不可逆。\n货主：${supplier.name}`,
         confirmText: '删除',
         confirmColor: '#d64b3f',
         success: async (res) => {
           if (!res.confirm) return
-          await this.deleteCustomer(customer)
+          await this.deleteSupplier(supplier)
         }
       })
     },
-    async deleteCustomer(customer) {
-      if (this.deletingCustomerId) return
-      this.deletingCustomerId = customer.id
+    async deleteSupplier(supplier) {
+      if (this.deletingSupplierId) return
+      this.deletingSupplierId = supplier.id
       try {
-        await request({ url: `/api/customers/${customer.id}`, method: 'DELETE' })
-        uni.showToast({ title: '已删除客户', icon: 'success' })
-        this.swipedCustomerId = null
-        await this.loadCustomers()
+        await request({ url: `/api/suppliers/${supplier.id}`, method: 'DELETE' })
+        uni.showToast({ title: '已删除货主', icon: 'success' })
+        this.swipedSupplierId = null
+        await this.loadSuppliers()
       } catch (err) {
         uni.showToast({
           title: err.message || '删除失败',
           icon: 'none'
         })
       } finally {
-        this.deletingCustomerId = null
+        this.deletingSupplierId = null
       }
     },
-    async loadCustomers() {
+    async loadSuppliers() {
       this.loading = true
       this.error = ''
       try {
         const query = this.keyword ? `?q=${encodeURIComponent(this.keyword)}` : ''
-        const result = await request({ url: `/api/customers${query}` })
-        this.customers = Array.isArray(result) ? result : []
+        const result = await request({ url: `/api/suppliers${query}` })
+        this.suppliers = Array.isArray(result) ? result : []
       } catch (err) {
-        this.customers = []
-        this.error = err.message || '客户列表读取失败'
+        this.suppliers = []
+        this.error = err.message || '货主列表读取失败'
       } finally {
         this.loading = false
       }
@@ -221,11 +214,11 @@ export default {
 </script>
 
 <style scoped>
-.customers-page {
+.suppliers-page {
   padding-right: 58rpx;
 }
 
-.customer-head {
+.supplier-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -290,7 +283,7 @@ export default {
   position: relative;
 }
 
-.customer-scroll {
+.supplier-scroll {
   max-height: calc(100vh - 250rpx - var(--window-bottom, 0px));
 }
 
@@ -301,14 +294,14 @@ export default {
   font-weight: 900;
 }
 
-.customer-swipe {
+.supplier-swipe {
   position: relative;
   margin-bottom: 14rpx;
   border-radius: 18rpx;
   overflow: hidden;
 }
 
-.customer-row {
+.supplier-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -323,11 +316,11 @@ export default {
   will-change: transform;
 }
 
-.customer-row.swiped {
+.supplier-row.swiped {
   transform: translateX(-132rpx);
 }
 
-.customer-row:active {
+.supplier-row:active {
   background: #f2fbf4;
 }
 
@@ -340,24 +333,25 @@ export default {
   width: 124rpx;
   height: 95%;
   min-height: 95%;
- margin: 5rpx;
+  margin: 5rpx;
   border-radius: 0 18rpx 18rpx 0;
   background: #d64b3f;
   color: #ffffff;
   font-size: 26rpx;
   font-weight: 900;
   line-height: 116rpx;
+
 }
 
 .delete-button::after {
   display: none;
 }
 
-.customer-main {
+.supplier-main {
   min-width: 0;
 }
 
-.customer-name {
+.supplier-name {
   overflow: hidden;
   color: #17362f;
   font-size: 30rpx;
@@ -366,7 +360,7 @@ export default {
   white-space: nowrap;
 }
 
-.customer-meta {
+.supplier-meta {
   margin-top: 8rpx;
   color: #718078;
   font-size: 24rpx;
@@ -448,5 +442,50 @@ export default {
 
 .error {
   color: #d64b3f;
+}
+
+.suppliers-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(217, 120, 23, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #fffaf0 0%, #fff3dc 100%);
+}
+
+.head-label,
+.group-title,
+.letter.active {
+  color: #d97817;
+}
+
+.head-title,
+.supplier-name,
+.empty-title {
+  color: #6f3d05;
+}
+
+.head-count,
+.search-card,
+.supplier-row,
+.empty-state {
+  border-color: #efd7aa;
+  background: linear-gradient(145deg, #ffffff 0%, #fff8e8 100%);
+}
+
+.search-input {
+  border-color: #efd7aa;
+  background: #fffaf0;
+}
+
+.clear-button,
+.letter.active {
+  background: #fff1d1;
+}
+
+.debt-money {
+  color: #d97817;
+}
+
+.debt-box.clear .debt-money {
+  color: #9b6b00;
 }
 </style>

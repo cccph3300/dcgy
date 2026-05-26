@@ -330,4 +330,40 @@ export default {
   font-size: 32rpx;
   font-weight: 900;
 }
+
+.retail-order {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(11, 154, 135, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f2fffb 0%, #e7fbf6 100%);
+}
+
+.soft-card,
+.customer-card {
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #effdfa 100%);
+}
+
+.section-title,
+.goods-name,
+.detail-text {
+  color: #0d4d45;
+}
+
+.goods-cell.active {
+  border-color: #0b9a87;
+  background: #e7fbf6;
+}
+
+.total-bar {
+  border-top-color: #bde5df;
+  background: #f2fffb;
+  color: #0d4d45;
+}
+
+.primary,
+.total-bar .primary {
+  background: #0b9a87;
+  color: #ffffff;
+}
 </style>

@@ -323,4 +323,36 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.print-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(36, 82, 119, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6fbff 0%, #eef7ff 100%);
+}
+
+.soft-card,
+.filter-card,
+.record-card,
+.empty-state {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8ff 100%);
+}
+
+.section-title,
+.record-title,
+.empty-title,
+.pager {
+  color: #17364e;
+}
+
+.record-type,
+.pager-button {
+  color: #245277;
+}
+
+.pager-button,
+.mini-button:not(.danger) {
+  background: #e4f0fa;
+}
 </style>

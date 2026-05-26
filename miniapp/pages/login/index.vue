@@ -55,7 +55,7 @@ export default {
     // APP 冷启动可能先显示登录页；有本地 token 时先进入第一个 tab，避免网络校验期间误以为需要重新登录。
     // 服务端会在后续业务接口返回 401 时统一要求重新登录。
     // #ifdef APP-PLUS
-    uni.switchTab({ url: '/pages/ai/index' })
+    uni.switchTab({ url: '/pages/order/index' })
     this.checkingSession = false
     return
     // #endif
@@ -63,7 +63,7 @@ export default {
     try {
       const data = await request({ url: '/api/auth/me', showErrorToast: false })
       if (data.staff) {
-        uni.switchTab({ url: '/pages/ai/index' })
+        uni.switchTab({ url: '/pages/order/index' })
       } else {
         clearSession()
       }
@@ -95,7 +95,7 @@ export default {
           showErrorToast: false
         })
         setSession(data.token, data.staff || data)
-        uni.switchTab({ url: '/pages/ai/index' })
+        uni.switchTab({ url: '/pages/order/index' })
       } catch (err) {
         this.loginError = err?.message || this.text.invalid
       } finally {

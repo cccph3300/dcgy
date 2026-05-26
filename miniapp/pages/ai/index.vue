@@ -4,7 +4,7 @@
     <view class="top-bar">
       <view class="title-wrap">
         <text class="brand">东成果业</text>
-        <text class="title">AI智能对话</text>
+        <text class="title">小东</text>
       </view>
       <view class="status-pill" :class="{ online: connected }">{{ statusText }}</view>
     </view>
@@ -34,7 +34,7 @@
       >
         <view class="bubble">
           <text v-if="message.content">{{ message.content }}</text>
-          <view v-if="message.loading" class="typing">AI 正在生成...</view>
+          <view v-if="message.loading" class="typing">小东正在处理...</view>
 
           <view v-if="message.action" class="action-panel">
             <view class="action-head">
@@ -125,6 +125,97 @@
               </scroll-view>
             </view>
 
+            <view v-else-if="message.action.kind === 'create_supplier_entry'" class="entry-draft-editor">
+              <view class="entry-form-grid">
+                <view class="entry-field suggest-field">
+                  <text>货主</text>
+                  <input
+                    v-model="message.action.supplierEntry.supplierName"
+                    class="draft-input"
+                    placeholder="货主"
+                    :data-action-id="message.id"
+                    @input="onSupplierEntrySupplierInput"
+                    @focus="searchSupplierEntrySuppliers"
+                  />
+                  <scroll-view
+                    v-if="message.action.supplierEntry.supplierSuggestions.length"
+                    class="draft-suggest-list entry-suggest-list"
+                    scroll-y
+                    enhanced
+                  >
+                    <view
+                      v-for="(supplier, supplierIndex) in message.action.supplierEntry.supplierSuggestions"
+                      :key="supplier.id"
+                      class="draft-suggest-item"
+                      :data-action-id="message.id"
+                      :data-supplier-index="supplierIndex"
+                      @click="selectSupplierEntrySupplier"
+                    >
+                      {{ supplier.name }}
+                    </view>
+                  </scroll-view>
+                </view>
+                <view class="entry-field suggest-field">
+                  <text>品名</text>
+                  <input
+                    v-model="message.action.supplierEntry.goodsName"
+                    class="draft-input"
+                    placeholder="品名"
+                    :data-action-id="message.id"
+                    @input="onSupplierEntryGoodsInput"
+                    @focus="searchSupplierEntryGoods"
+                  />
+                  <scroll-view
+                    v-if="message.action.supplierEntry.goodsSuggestions.length"
+                    class="draft-suggest-list entry-suggest-list"
+                    scroll-y
+                    enhanced
+                  >
+                    <view
+                      v-for="(goods, goodsIndex) in message.action.supplierEntry.goodsSuggestions"
+                      :key="goods.id"
+                      class="draft-suggest-item"
+                      :data-action-id="message.id"
+                      :data-goods-index="goodsIndex"
+                      @click="selectSupplierEntryGoods"
+                    >
+                      {{ goods.name }}
+                    </view>
+                  </scroll-view>
+                </view>
+                <view class="entry-field">
+                  <text>计费</text>
+                  <picker :range="entryUnitOptions" range-key="label" :value="message.action.supplierEntry.unitIndex" :data-action-id="message.id" @change="changeSupplierEntryUnit">
+                    <view class="picker-value">{{ message.action.supplierEntry.unitType === 'weight' ? '按斤' : '按件' }}</view>
+                  </picker>
+                </view>
+                <view class="entry-field">
+                  <text>件数</text>
+                  <input v-model="message.action.supplierEntry.quantity" class="draft-input" type="digit" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
+                </view>
+                <view class="entry-field">
+                  <text>重量</text>
+                  <input v-model="message.action.supplierEntry.weight" class="draft-input" type="digit" placeholder="斤" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
+                </view>
+                <view class="entry-field">
+                  <text>总金额</text>
+                  <input v-model="message.action.supplierEntry.totalAmount" class="draft-input" type="digit" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
+                </view>
+                <view class="entry-field">
+                  <text>总佣金</text>
+                  <input v-model="message.action.supplierEntry.totalCommission" class="draft-input" type="digit" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
+                </view>
+                <view class="entry-field">
+                  <text>成本</text>
+                  <input v-model="message.action.supplierEntry.costPrice" class="draft-input" type="digit" disabled />
+                </view>
+                <view class="entry-field">
+                  <text>售卖价</text>
+                  <input v-model="message.action.supplierEntry.salePrice" class="draft-input" type="digit" />
+                </view>
+              </view>
+            </view>
+
             <view v-else class="table-wrap">
               <view class="table-row table-head" :class="message.action.tableClass">
                 <text v-for="col in message.action.table.columns" :key="col" class="table-cell">{{ col }}</text>
@@ -154,8 +245,23 @@
                 <text>合计 ￥{{ money(message.action.totalAmount) }}</text>
                 <text>共 {{ message.action.rowCount }} 项</text>
               </view>
-              <button class="action-button primary" :disabled="message.action.submitting" :data-action-id="message.id" @click="confirmDraft">
-                {{ message.action.submitting ? '出单中' : '确认出单' }}
+              <view class="action-button-row">
+                <button class="action-button primary" :disabled="message.action.submitting" :data-action-id="message.id" @click="confirmDraft">
+                  {{ message.action.submitting ? '出单中' : '确认出单' }}
+                </button>
+                <button class="action-button print" :disabled="message.action.submitting" :data-action-id="message.id" @click="confirmDraftAndPrint">
+                  确认并打印
+                </button>
+              </view>
+            </view>
+
+            <view v-if="message.action.kind === 'create_supplier_entry'" class="action-footer">
+              <view class="action-meta">
+                <text>合计 ￥{{ money(message.action.supplierEntry.totalAmount) }}</text>
+                <text>{{ message.action.supplierEntry.unitType === 'weight' ? '按斤入账' : '按件入账' }}</text>
+              </view>
+              <button class="action-button primary" :disabled="message.action.submitting" :data-action-id="message.id" @click="confirmSupplierEntryDraft">
+                {{ message.action.submitting ? '入账中' : '确认入账' }}
               </button>
             </view>
           </view>
@@ -293,19 +399,25 @@ export default {
       goodsLoaded: false,
       draftCustomerTimer: null,
       draftGoodsTimer: null,
+      supplierEntrySupplierTimer: null,
+      supplierEntryGoodsTimer: null,
       recordStartTimer: null,
       h5MediaRecorder: null,
       h5RecordChunks: [],
       h5RecordStream: null,
       voiceOverlayVisible: false,
-      voiceBars: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+      voiceBars: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      entryUnitOptions: [
+        { label: '按件', value: 'qty' },
+        { label: '按斤', value: 'weight' }
+      ]
     }
   },
   computed: {
     statusText() {
       if (this.recording) return '录音中'
       if (this.recognizing) return '识别中'
-      if (this.busy) return 'AI 思考中'
+      if (this.busy) return '处理中'
       return this.connected ? '已连接' : '可用'
     },
     voiceMainText() {
@@ -369,6 +481,14 @@ export default {
     if (this.draftGoodsTimer) {
       clearTimeout(this.draftGoodsTimer)
       this.draftGoodsTimer = null
+    }
+    if (this.supplierEntrySupplierTimer) {
+      clearTimeout(this.supplierEntrySupplierTimer)
+      this.supplierEntrySupplierTimer = null
+    }
+    if (this.supplierEntryGoodsTimer) {
+      clearTimeout(this.supplierEntryGoodsTimer)
+      this.supplierEntryGoodsTimer = null
     }
     // #ifdef MP-WEIXIN || APP-PLUS
     if (this.keyboardHeightHandler && typeof uni.offKeyboardHeightChange === 'function') {
@@ -449,7 +569,7 @@ export default {
         this.historyLoaded = true
         this.scrollToBottom(true)
       } catch (err) {
-        uni.showToast({ title: err?.message || '加载 AI 记录失败', icon: 'none' })
+        uni.showToast({ title: err?.message || '加载小东记录失败', icon: 'none' })
       } finally {
         this.historyLoading = false
       }
@@ -475,7 +595,7 @@ export default {
           }, 20)
         })
       } catch (err) {
-        uni.showToast({ title: err?.message || '加载 AI 记录失败', icon: 'none' })
+        uni.showToast({ title: err?.message || '加载小东记录失败', icon: 'none' })
       } finally {
         this.historyLoading = false
         this.historyRefreshing = false
@@ -719,18 +839,30 @@ export default {
     },
     getNativeRecordOptions() {
       const options = {
-        duration: 60000,
-        sampleRate: 16000,
-        numberOfChannels: 1,
-        encodeBitRate: 96000
+        duration: 60000
       }
       // #ifdef APP-PLUS
-      // App 端录音实际格式会在后端按音频头校验，避免 APK 机型差异导致格式误判。
-      options.format = 'mp3'
+      const systemInfo = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {}
+      const platform = String(systemInfo.platform || '').toLowerCase()
+      if (platform === 'ios') {
+        // iOS 对 encodeBitRate 支持不稳定，只传通用参数，避免录音启动时报 not applicable。
+        options.format = 'aac'
+      } else {
+        options.sampleRate = 16000
+        options.numberOfChannels = 1
+        options.encodeBitRate = 96000
+        options.format = 'mp3'
+      }
       // #endif
       // #ifdef MP-WEIXIN
-      // 小程序端继续使用原本稳定的 aac，并保留小程序支持的码率参数。
+      const wxSystemInfo = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {}
+      const wxPlatform = String(wxSystemInfo.platform || '').toLowerCase()
+      options.sampleRate = 16000
+      options.numberOfChannels = 1
       options.format = 'aac'
+      if (wxPlatform !== 'ios') {
+        options.encodeBitRate = 96000
+      }
       // #endif
       return options
     },
@@ -1035,6 +1167,18 @@ export default {
         this.refreshDraftTotals(normalized)
         return normalized
       }
+      if (action.kind === 'create_supplier_entry') {
+        const entry = action.draft || {}
+        const normalized = {
+          ...action,
+          submitting: false,
+          table,
+          tableClass,
+          supplierEntry: this.buildSupplierEntryDraft(entry)
+        }
+        this.refreshSupplierEntryDraft(normalized)
+        return normalized
+      }
       return {
         ...action,
         submitting: false,
@@ -1072,7 +1216,7 @@ export default {
       if (text.includes('1302') || text.includes('速率限制')) {
         return '当前模型请求过于频繁，请稍后再试'
       }
-      return text || 'AI 请求失败'
+      return text || '小东请求失败'
     },
     keepRecentMessages() {
       if (this.messages.length <= this.maxMessages) return
@@ -1085,7 +1229,7 @@ export default {
       this.clearAiTimeout()
       this.aiTimeoutTimer = setTimeout(() => {
         if (!this.busy || !this.activeAssistantId) return
-        this.failAssistant('AI 响应超时，请稍后重试')
+        this.failAssistant('小东响应超时，请稍后重试')
       }, 45000)
     },
     clearAiTimeout() {
@@ -1114,6 +1258,25 @@ export default {
       this.updateDraftRowSubtotal(row)
       return row
     },
+    buildSupplierEntryDraft(entry) {
+      const unitType = entry?.unitType === 'weight' ? 'weight' : 'qty'
+      return {
+        supplierName: String(entry?.supplierName || ''),
+        goodsName: String(entry?.goodsName || ''),
+        unitType,
+        unitIndex: unitType === 'weight' ? 1 : 0,
+        quantity: String(entry?.quantity ?? ''),
+        weight: entry?.weight === null || entry?.weight === undefined ? '' : String(entry.weight),
+        totalAmount: String(entry?.totalAmount ?? ''),
+        totalCommission: String(entry?.totalCommission ?? 0),
+        costPrice: String(entry?.costPrice ?? ''),
+        commission: String(entry?.commission ?? ''),
+        salePrice: String(entry?.salePrice ?? ''),
+        stockMode: entry?.stockMode === 'record_only' ? 'record_only' : 'auto_stocked',
+        supplierSuggestions: [],
+        goodsSuggestions: []
+      }
+    },
     updateDraftRowSubtotal(item) {
       const quantity = Number(item.quantity || 0)
       const weight = Number(item.weight || 0)
@@ -1131,6 +1294,22 @@ export default {
       action.goodsAmount = action.totalAmount
       action.rowCount = action.items.length
     },
+    refreshSupplierEntryDraft(action) {
+      if (!action || action.kind !== 'create_supplier_entry') return
+      const entry = action.supplierEntry
+      const quantity = Number(entry.quantity || 0)
+      const weight = Number(entry.weight || 0)
+      const totalAmount = Number(entry.totalAmount || 0)
+      const totalCommission = Number(entry.totalCommission || 0)
+      const billingAmount = entry.unitType === 'weight' ? weight : quantity
+      if (billingAmount > 0 && totalAmount >= totalCommission) {
+        entry.costPrice = String(Number(((totalAmount - totalCommission) / billingAmount).toFixed(2)))
+      }
+      if (quantity > 0) {
+        entry.commission = String(Number((totalCommission / quantity).toFixed(2)))
+      }
+      if (!entry.salePrice && entry.costPrice) entry.salePrice = entry.costPrice
+    },
     findDraftAction(event) {
       const actionId = Number(event?.currentTarget?.dataset?.actionId || event?.target?.dataset?.actionId || 0)
       const message = this.messages.find(item => Number(item.id) === actionId)
@@ -1146,6 +1325,76 @@ export default {
       if (!action || !item) return
       this.updateDraftRowSubtotal(item)
       this.refreshDraftTotals(action)
+    },
+    updateSupplierEntryDraft(event) {
+      const action = this.findDraftAction(event)
+      this.refreshSupplierEntryDraft(action)
+    },
+    onSupplierEntrySupplierInput(event) {
+      const action = this.findDraftAction(event)
+      if (!action || action.kind !== 'create_supplier_entry') return
+      clearTimeout(this.supplierEntrySupplierTimer)
+      this.supplierEntrySupplierTimer = setTimeout(() => this.searchSupplierEntrySuppliers(action), 220)
+    },
+    async searchSupplierEntrySuppliers(eventOrAction) {
+      const action = eventOrAction?.kind ? eventOrAction : this.findDraftAction(eventOrAction)
+      if (!action || action.kind !== 'create_supplier_entry') return
+      const entry = action.supplierEntry
+      const keyword = String(entry.supplierName || '').trim()
+      if (!keyword) {
+        entry.supplierSuggestions = []
+        return
+      }
+      entry.supplierSuggestions = await request({ url: `/api/suppliers/search?q=${encodeURIComponent(keyword)}` })
+    },
+    selectSupplierEntrySupplier(event) {
+      const action = this.findDraftAction(event)
+      const index = Number(event?.currentTarget?.dataset?.supplierIndex || event?.target?.dataset?.supplierIndex || 0)
+      const supplier = action?.supplierEntry?.supplierSuggestions?.[index]
+      if (!action || !supplier) return
+      action.supplierEntry.supplierName = supplier.name
+      action.supplierEntry.supplierSuggestions = []
+    },
+    onSupplierEntryGoodsInput(event) {
+      const action = this.findDraftAction(event)
+      if (!action || action.kind !== 'create_supplier_entry') return
+      clearTimeout(this.supplierEntryGoodsTimer)
+      this.supplierEntryGoodsTimer = setTimeout(() => this.searchSupplierEntryGoods(action), 180)
+      this.refreshSupplierEntryDraft(action)
+    },
+    async searchSupplierEntryGoods(eventOrAction) {
+      const action = eventOrAction?.kind ? eventOrAction : this.findDraftAction(eventOrAction)
+      if (!action || action.kind !== 'create_supplier_entry') return
+      await this.ensureGoodsList()
+      const entry = action.supplierEntry
+      const keyword = String(entry.goodsName || '').trim()
+      entry.goodsSuggestions = this.goodsList
+        .filter(goods => !keyword || goods.name.includes(keyword))
+        .slice(0, 8)
+    },
+    selectSupplierEntryGoods(event) {
+      const action = this.findDraftAction(event)
+      const index = Number(event?.currentTarget?.dataset?.goodsIndex || event?.target?.dataset?.goodsIndex || 0)
+      const goods = action?.supplierEntry?.goodsSuggestions?.[index]
+      if (!action || !goods) return
+      const entry = action.supplierEntry
+      entry.goodsName = goods.name
+      entry.unitType = goods.unitType === 'weight' ? 'weight' : 'qty'
+      entry.unitIndex = entry.unitType === 'weight' ? 1 : 0
+      if (entry.unitType === 'qty') entry.weight = ''
+      if (!entry.salePrice) entry.salePrice = String(goods.salePrice || goods.costPrice || '')
+      entry.goodsSuggestions = []
+      this.refreshSupplierEntryDraft(action)
+    },
+    changeSupplierEntryUnit(event) {
+      const action = this.findDraftAction(event)
+      if (!action || action.kind !== 'create_supplier_entry') return
+      const index = Number(event?.detail?.value || 0)
+      const option = this.entryUnitOptions[index] || this.entryUnitOptions[0]
+      action.supplierEntry.unitType = option.value
+      action.supplierEntry.unitIndex = index
+      if (option.value === 'qty') action.supplierEntry.weight = ''
+      this.refreshSupplierEntryDraft(action)
     },
     removeDraftItem(event) {
       const action = this.findDraftAction(event)
@@ -1240,6 +1489,34 @@ export default {
       if (invalidWeight) return `${invalidWeight.goodsName}请填写重量`
       return ''
     },
+    buildSupplierEntryPayload(action) {
+      const entry = action.supplierEntry || {}
+      return {
+        supplierEntry: {
+          supplierName: String(entry.supplierName || '').trim(),
+          goodsName: String(entry.goodsName || '').trim(),
+          unitType: entry.unitType === 'weight' ? 'weight' : 'qty',
+          quantity: Number(entry.quantity || 0),
+          weight: entry.unitType === 'weight' ? Number(entry.weight || 0) : null,
+          totalAmount: Number(entry.totalAmount || 0),
+          totalCommission: Number(entry.totalCommission || 0),
+          salePrice: Number(entry.salePrice || entry.costPrice || 0),
+          stockMode: entry.stockMode || 'auto_stocked'
+        }
+      }
+    },
+    validateSupplierEntryDraft(action) {
+      const entry = action?.supplierEntry || {}
+      if (!String(entry.supplierName || '').trim()) return '请填写货主'
+      if (!String(entry.goodsName || '').trim()) return '请填写品名'
+      if (Number(entry.quantity || 0) <= 0) return '件数必须大于0'
+      if (entry.unitType === 'weight' && Number(entry.weight || 0) <= 0) return '按斤入账必须填写重量'
+      if (Number(entry.totalAmount || 0) <= 0) return '总金额必须大于0'
+      if (Number(entry.totalCommission || 0) < 0) return '总佣金不能小于0'
+      if (Number(entry.totalCommission || 0) > Number(entry.totalAmount || 0)) return '总佣金不能大于总金额'
+      if (Number(entry.salePrice || entry.costPrice || 0) <= 0) return '售卖价必须大于0'
+      return ''
+    },
     findOrderInAction(action, orderId) {
       return action?.orders?.find(item => Number(item.id) === Number(orderId)) || null
     },
@@ -1273,7 +1550,7 @@ export default {
         }
       })
     },
-    async confirmDraft(event) {
+    async confirmDraft(event, printAfter = false) {
       const action = this.findDraftAction(event)
       const message = this.messages.find(item => item.action === action)
       if (!action || action.kind !== 'create_order' || !action.token) return
@@ -1286,9 +1563,9 @@ export default {
       }
 
       uni.showModal({
-        title: '确认出单',
-        content: `操作不可逆，确认出单吗？合计 ¥${money(action.totalAmount)}`,
-        confirmText: '出单',
+        title: printAfter ? '确认出单并打印' : '确认出单',
+        content: `操作不可逆，确认${printAfter ? '出单并打印' : '出单'}吗？合计 ¥${money(action.totalAmount)}`,
+        confirmText: printAfter ? '出单打印' : '出单',
         cancelText: '取消',
         success: async (res) => {
           if (!res.confirm) return
@@ -1296,12 +1573,68 @@ export default {
           try {
             const result = await confirmAiOperation(action.token, this.buildDraftPayload(action))
             const orderNo = result?.order?.orderNo || ''
-            message.content = `${message.content}\n已确认执行，订单号：${orderNo}`
+            const orderId = result?.order?.id || result?.result?.id
+            let printSent = false
+            let printError = ''
+            if (printAfter) {
+              if (orderId) {
+                try {
+                  await request({ url: '/api/prints/order', method: 'POST', data: { orderId } })
+                  printSent = true
+                } catch (err) {
+                  printError = err?.message || '打印失败'
+                }
+              } else {
+                printError = '出单成功，但没有返回订单ID，未发送打印'
+              }
+            }
+            message.content = `${message.content}\n已确认执行，订单号：${orderNo}${printAfter ? (printSent ? '，已发送打印' : `，${printError}`) : ''}`
             message.action = null
             this.goodsLoaded = false
-            uni.showToast({ title: '出单成功', icon: 'success' })
+            uni.showToast({
+              title: printAfter && !printSent ? (printError || '出单成功，打印失败') : (printAfter ? '出单并打印成功' : '出单成功'),
+              icon: printAfter && !printSent ? 'none' : 'success'
+            })
           } catch (err) {
             uni.showToast({ title: err?.message || '确认失败', icon: 'none' })
+          } finally {
+            action.submitting = false
+          }
+        }
+      })
+    },
+    confirmDraftAndPrint(event) {
+      return this.confirmDraft(event, true)
+    },
+    async confirmSupplierEntryDraft(event) {
+      const action = this.findDraftAction(event)
+      const message = this.messages.find(item => item.action === action)
+      if (!action || action.kind !== 'create_supplier_entry' || !action.token) return
+      if (action.submitting) return
+      this.refreshSupplierEntryDraft(action)
+      const invalidText = this.validateSupplierEntryDraft(action)
+      if (invalidText) {
+        uni.showToast({ title: invalidText, icon: 'none' })
+        return
+      }
+
+      uni.showModal({
+        title: '确认入账',
+        content: `操作不可逆，确认入账吗？合计 ¥${money(action.supplierEntry.totalAmount)}`,
+        confirmText: '入账',
+        cancelText: '取消',
+        success: async (res) => {
+          if (!res.confirm) return
+          action.submitting = true
+          try {
+            const result = await confirmAiOperation(action.token, this.buildSupplierEntryPayload(action))
+            const entryNo = result?.result?.entryNo || result?.order?.entryNo || ''
+            message.content = `${message.content}\n已确认入账，单号：${entryNo}`
+            message.action = null
+            this.goodsLoaded = false
+            uni.showToast({ title: '入账成功', icon: 'success' })
+          } catch (err) {
+            uni.showToast({ title: err?.message || '入账失败', icon: 'none' })
           } finally {
             action.submitting = false
           }
@@ -1643,6 +1976,62 @@ export default {
   box-sizing: border-box;
 }
 
+.entry-draft-editor {
+  padding: 12rpx;
+  border: 1rpx solid #e2ece0;
+  border-radius: 14rpx;
+  background: #fbfdf9;
+}
+
+.entry-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.entry-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.entry-field.suggest-field {
+  position: relative;
+  z-index: 20;
+}
+
+.entry-field.suggest-field:nth-child(2) {
+  z-index: 19;
+}
+
+.entry-field text {
+  color: #5f6d64;
+  font-size: 21rpx;
+  font-weight: 900;
+}
+
+.entry-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 86rpx;
+  z-index: 90;
+  max-height: 154rpx;
+}
+
+.picker-value {
+  height: 58rpx;
+  padding: 0 10rpx;
+  border: 1rpx solid #dce8d9;
+  border-radius: 10rpx;
+  background: #ffffff;
+  color: #17362f;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 58rpx;
+}
+
 .editable-scroll {
   width: 100%;
   overflow: visible;
@@ -1774,6 +2163,17 @@ export default {
   color: #ffffff;
   font-size: 26rpx;
   font-weight: 900;
+}
+
+.action-button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+}
+
+.action-button.print {
+  background: #fff4c8;
+  color: #8a6413;
 }
 
 .action-button.danger {

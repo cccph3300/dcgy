@@ -118,14 +118,14 @@ export default {
 }
 
 .head-label {
-  color: #16945f;
+  color: #4d6ed8;
   font-size: 24rpx;
   font-weight: 900;
 }
 
 .head-title {
   margin-top: 8rpx;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 42rpx;
   font-weight: 900;
 }
@@ -134,8 +134,8 @@ export default {
   min-width: 96rpx;
   height: 52rpx;
   border-radius: 18rpx;
-  background: #fff6cf;
-  color: #17362f;
+  background: #e9eefb;
+  color: #4d6ed8;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 52rpx;
@@ -143,29 +143,29 @@ export default {
 }
 
 .tip-card {
-  border-color: #c9dcc9;
-  background: linear-gradient(135deg, #ffffff 0%, #f2fbf4 100%);
+  border-color: #cdd8fb;
+  background: linear-gradient(135deg, #ffffff 0%, #f4f7ff 100%);
 }
 
 .tip-title {
-  color: #17362f;
+  color: #1f2f63;
   font-size: 28rpx;
   font-weight: 900;
 }
 
 .tip-text {
   margin-top: 6rpx;
-  color: #718078;
+  color: #697597;
   font-size: 24rpx;
 }
 
 .trash-card {
   margin-bottom: 16rpx;
   padding: 18rpx;
-  border: 2rpx solid #e4d7d4;
+  border: 2rpx solid #d9e1fb;
   border-radius: 18rpx;
-  background: #fffef9;
-  box-shadow: 0 10rpx 22rpx rgba(60, 45, 36, 0.07);
+  background: #ffffff;
+  box-shadow: 0 10rpx 22rpx rgba(52, 73, 140, 0.08);
 }
 
 .trash-top {
@@ -183,7 +183,7 @@ export default {
 
 .market-name {
   overflow: hidden;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 30rpx;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -193,7 +193,7 @@ export default {
 .order-time,
 .order-no,
 .item-preview {
-  color: #718078;
+  color: #697597;
   font-size: 24rpx;
 }
 
@@ -212,7 +212,7 @@ export default {
 }
 
 .item-preview {
-  color: #415149;
+  color: #4b5b82;
   font-weight: 800;
 }
 
@@ -232,12 +232,12 @@ export default {
 }
 
 .view-button {
-  background: #e8f6ed;
-  color: #166b4e;
+  background: #e9eefb;
+  color: #4d6ed8;
 }
 
 .restore-button {
-  background: #16945f;
+  background: #4d6ed8;
   color: #ffffff;
 }
 
@@ -247,7 +247,7 @@ export default {
 
 .empty,
 .empty-state {
-  color: #718078;
+  color: #697597;
   text-align: center;
 }
 
@@ -263,21 +263,21 @@ export default {
   height: 90rpx;
   margin: 0 auto 16rpx;
   border-radius: 28rpx;
-  background: #e8f6ed;
-  color: #166b4e;
+  background: #e9eefb;
+  color: #4d6ed8;
   font-size: 38rpx;
   font-weight: 900;
 }
 
 .empty-title {
-  color: #17362f;
+  color: #1f2f63;
   font-size: 30rpx;
   font-weight: 900;
 }
 
 .empty-text {
   margin-top: 8rpx;
-  color: #718078;
+  color: #697597;
   font-size: 24rpx;
 }
 

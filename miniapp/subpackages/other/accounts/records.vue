@@ -1,5 +1,5 @@
 <template>
-  <view class="page delivery-list">
+  <view class="page account-records">
     <view class="soft-card filter-card">
       <view class="date-wrap">
         <picker :value="dateIndex" :range="dateOptions" range-key="label" @change="changeDateMode">
@@ -21,33 +21,35 @@
       <picker :value="statusIndex" :range="statusOptions" range-key="label" @change="changeStatus">
         <view class="input picker-input">{{ statusLabel }}</view>
       </picker>
-      <input v-model="marketName" class="input search-input" placeholder="超市名称" confirm-type="search" @confirm="reload" />
+      <input v-model="supplierName" class="input search-input" placeholder="货主名称" confirm-type="search" @confirm="reload" />
     </view>
 
     <view class="soft-card list-card">
       <view class="title-row">
-        <view class="section-title">超市订单</view>
+        <view class="section-title">入账记录</view>
         <view class="count">共{{ pagination.total }}单</view>
       </view>
 
-      <view v-if="loading" class="empty">正在读取订单...</view>
+      <view v-if="loading" class="empty">正在读取入账记录...</view>
       <view v-else-if="error" class="empty error">{{ error }}</view>
       <view v-else>
-        <view v-for="order in orders" :key="order.id" class="order-row" @click="openDetail(order.id)">
-          <view class="order-main">
-            <text class="market">{{ order.supermarketName }}</text>
-            <text class="amount">¥{{ money(order.totalAmount) }}</text>
-            <text class="muted time">{{ timeText(order.createdAt) }}</text>
-          </view>
-          <view class="order-foot">
-            <text class="profit" :class="{ loss: Number(order.totalProfit || 0) < 0 }">利润 ¥{{ money(order.totalProfit) }}</text>
-            <view class="order-actions">
-              <button v-if="order.status === 'active'" class="pay-button" @click.stop="payOrder(order)">结账</button>
-              <text class="status" :class="order.status">{{ statusText(order.status) }}</text>
+        <view v-for="entry in entries" :key="entry.id" class="entry-row" @click="openDetail(entry.id)">
+          <view class="entry-main">
+            <view class="entry-top">
+              <text class="supplier">{{ entry.supplierName }}</text>
+              <text class="amount" :class="entry.status">¥{{ money(entry.totalAmount) }}</text>
+            </view>
+            <text class="goods">{{ entry.goodsName }} · {{ itemSummary(entry) }}</text>
+            <view class="entry-foot">
+              <text class="muted">{{ timeText(entry.createdAt) }}</text>
+              <view class="entry-actions">
+                <button v-if="entry.status === 'unpaid'" class="pay-button" @click.stop="payEntry(entry)">付清</button>
+                <text class="status" :class="entry.status">{{ statusText(entry.status) }}</text>
+              </view>
             </view>
           </view>
         </view>
-        <view v-if="!orders.length" class="empty">没有超市订单</view>
+        <view v-if="!entries.length" class="empty">没有入账记录</view>
 
         <view v-if="pagination.totalPages > 1" class="pager">
           <button class="pager-button" :disabled="pagination.page <= 1" @click="changePage(pagination.page - 1)">上一页</button>
@@ -62,8 +64,8 @@
 </template>
 
 <script>
-import { request, requireLogin } from '../../utils/request'
-import { money, timeText, todayText } from '../../utils/format'
+import { request, requireLogin } from '../../../utils/request'
+import { money, numberText, timeText, todayText } from '../../../utils/format'
 
 export default {
   data() {
@@ -74,8 +76,8 @@ export default {
       endDate: today,
       dateMode: 'day',
       status: '',
-      marketName: '',
-      orders: [],
+      supplierName: '',
+      entries: [],
       pagination: {
         page: 1,
         pageSize: 6,
@@ -91,9 +93,8 @@ export default {
       ],
       statusOptions: [
         { label: '全部状态', value: '' },
-        { label: '未结', value: 'active' },
-        { label: '已结', value: 'paid' },
-        { label: '已作废', value: 'cancelled' }
+        { label: '未付', value: 'unpaid' },
+        { label: '已付清', value: 'paid' }
       ]
     }
   },
@@ -125,15 +126,21 @@ export default {
     }
   },
   onShow() {
-    if (requireLogin()) this.loadOrders()
+    if (requireLogin()) this.loadEntries()
   },
   methods: {
     money,
+    numberText,
     timeText,
     statusText(status) {
-      if (status === 'paid') return '已结'
-      if (status === 'cancelled') return '已作废'
-      return '未结'
+      return status === 'paid' ? '已付清' : '未付'
+    },
+    itemSummary(entry) {
+      const quantity = `${numberText(entry.quantity)}件`
+      if (entry.unitType === 'weight' && entry.weight) {
+        return `${quantity} · ${numberText(entry.weight)}斤 · 成本${money(entry.costPrice)}/斤`
+      }
+      return `${quantity} · 成本${money(entry.costPrice)}/件`
     },
     changeDateMode(event) {
       this.dateMode = this.dateOptions[Number(event.detail.value)].value
@@ -162,19 +169,19 @@ export default {
     },
     reload() {
       this.pagination.page = 1
-      this.loadOrders()
+      this.loadEntries()
     },
     changePage(page) {
       const next = Math.min(Math.max(Number(page), 1), this.pagination.totalPages)
       if (next === this.pagination.page) return
       this.pagination.page = next
-      this.loadOrders()
+      this.loadEntries()
     },
     selectPage(event) {
       const option = this.pageOptions[Number(event.detail.value)]
       if (option) this.changePage(option.value)
     },
-    async loadOrders() {
+    async loadEntries() {
       this.loading = true
       this.error = ''
       try {
@@ -183,35 +190,35 @@ export default {
           ? `&mode=range&startDate=${encodeURIComponent(this.startDate)}&endDate=${encodeURIComponent(this.endDate)}`
           : ''
         const result = await request({
-          url: `/api/supermarket-orders?date=${encodeURIComponent(dateParam)}${rangeParams}&supermarketName=${encodeURIComponent(this.marketName.trim())}&status=${encodeURIComponent(this.status)}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
+          url: `/api/supplier-entries?date=${encodeURIComponent(dateParam)}${rangeParams}&supplierName=${encodeURIComponent(this.supplierName.trim())}&status=${encodeURIComponent(this.status)}&page=${this.pagination.page}&pageSize=${this.pagination.pageSize}`
         })
-        this.orders = Array.isArray(result) ? result : (result.items || [])
+        this.entries = result.items || []
         this.pagination = result.pagination || {
           page: 1,
           pageSize: this.pagination.pageSize,
-          total: this.orders.length,
+          total: this.entries.length,
           totalPages: 1
         }
       } catch (err) {
-        this.orders = []
-        this.error = err.message || '超市订单读取失败'
+        this.entries = []
+        this.error = err.message || '入账记录读取失败'
       } finally {
         this.loading = false
       }
     },
     openDetail(id) {
-      uni.navigateTo({ url: `/subpackages/delivery/detail?id=${id}` })
+      uni.navigateTo({ url: `/subpackages/other/accounts/detail?id=${id}` })
     },
-    payOrder(order) {
+    payEntry(entry) {
       uni.showModal({
-        title: '确认结账',
-        content: `超市：${order.supermarketName}\n总金额：¥${money(order.totalAmount)}`,
-        confirmText: '结账',
+        title: '确认付清',
+        content: `货主：${entry.supplierName}\n品名：${entry.goodsName}\n总金额：¥${money(entry.totalAmount)}`,
+        confirmText: '付清',
         success: async (res) => {
           if (!res.confirm) return
-          await request({ url: `/api/supermarket-orders/${order.id}/pay`, method: 'PATCH' })
-          uni.showToast({ title: '已结账', icon: 'success' })
-          this.loadOrders()
+          await request({ url: `/api/supplier-entries/${entry.id}/pay`, method: 'PATCH' })
+          uni.showToast({ title: '已付清', icon: 'success' })
+          this.loadEntries()
         }
       })
     }
@@ -225,18 +232,14 @@ export default {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12rpx;
   padding: 16rpx;
-  border-color: #cdd8fb;
-  background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
 }
 
 .date-wrap {
-  position: relative;
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 108rpx;
   gap: 8rpx;
   align-items: center;
-  min-width: 0;
 }
 
 .range-wrap {
@@ -247,61 +250,43 @@ export default {
   align-items: center;
 }
 
-.range-date {
-  width: auto;
-}
-
-.range-sep {
-  color: #697597;
-  font-size: 24rpx;
-  font-weight: 900;
-  text-align: center;
-}
-
 .filter-card .search-input {
   grid-column: 1 / -1;
 }
 
 .picker-input,
-.filter-button {
-  display: flex;
-  align-items: center;
-}
-
-.filter-button {
-  justify-content: center;
-  min-height: 68rpx;
-  border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
+.filter-button,
 .date-change {
   display: flex;
   align-items: center;
+}
+
+.filter-button,
+.date-change {
   justify-content: center;
-  height: 68rpx;
   min-height: 68rpx;
-  padding: 0 8rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #16945f;
   font-size: 24rpx;
   font-weight: 900;
+}
+
+.range-sep {
+  color: #718078;
+  font-size: 24rpx;
+  font-weight: 900;
+  text-align: center;
 }
 
 .list-card {
   padding: 18rpx;
-  border-color: #cdd8fb;
-  background: linear-gradient(145deg, #ffffff 0%, #f6f8ff 100%);
 }
 
 .title-row,
-.order-main,
-.order-foot,
-.order-actions,
+.entry-top,
+.entry-foot,
+.entry-actions,
 .pager {
   display: flex;
   align-items: center;
@@ -309,23 +294,27 @@ export default {
 }
 
 .count {
-  color: #697597;
+  color: #718078;
   font-size: 24rpx;
   font-weight: 900;
 }
 
-.order-row {
+.entry-row {
   margin-bottom: 12rpx;
   padding: 16rpx;
-  border: 2rpx solid #d9e1fb;
+  border: 2rpx solid #c9dcc9;
   border-radius: 16rpx;
-  background: #ffffff;
+  background: #fffef9;
 }
 
-.market {
-  max-width: 300rpx;
+.entry-main {
+  min-width: 0;
+}
+
+.supplier {
+  max-width: 330rpx;
   overflow: hidden;
-  color: #1f2f63;
+  color: #17362f;
   font-size: 30rpx;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -333,53 +322,30 @@ export default {
 }
 
 .amount {
-  color: #4d6ed8;
+  color: #d64b3f;
   font-size: 30rpx;
   font-weight: 900;
 }
 
-.time {
-  display: block;
-  margin-top: 8rpx;
+.amount.paid {
+  color: #16945f;
 }
 
-.order-foot {
+.goods {
+  display: block;
+  overflow: hidden;
+  margin-top: 8rpx;
+  color: #415149;
+  font-size: 24rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-foot {
   margin-top: 12rpx;
 }
 
-.profit {
-  color: #4d6ed8;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.profit.loss {
-  color: #d64b3f;
-}
-
-.status {
-  min-width: 92rpx;
-  height: 44rpx;
-  border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
-  font-size: 24rpx;
-  font-weight: 900;
-  line-height: 44rpx;
-  text-align: center;
-}
-
-.status.unpaid {
-  background: #fff6cf;
-  color: #9b6b00;
-}
-
-.status.cancelled {
-  background: #ffece8;
-  color: #d64b3f;
-}
-
-.order-actions {
+.entry-actions {
   gap: 10rpx;
 }
 
@@ -388,11 +354,28 @@ export default {
   height: 44rpx;
   min-height: 44rpx;
   border-radius: 12rpx;
-  background: #4d6ed8;
+  background: #16945f;
   color: #ffffff;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 44rpx;
+}
+
+.status {
+  min-width: 92rpx;
+  height: 44rpx;
+  border-radius: 12rpx;
+  background: #fff6cf;
+  color: #9b6b00;
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 44rpx;
+  text-align: center;
+}
+
+.status.paid {
+  background: #e8f6ed;
+  color: #16945f;
 }
 
 .pager {
@@ -405,8 +388,8 @@ export default {
   height: 54rpx;
   min-height: 54rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #16945f;
   font-size: 24rpx;
   font-weight: 900;
 }
@@ -415,10 +398,10 @@ export default {
   min-width: 190rpx;
   height: 54rpx;
   margin: 0 12rpx;
-  border: 2rpx solid #d9e1fb;
+  border: 2rpx solid #c9dcc9;
   border-radius: 12rpx;
-  background: #ffffff;
-  color: #24305a;
+  background: #fffef9;
+  color: #415149;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 54rpx;
@@ -427,11 +410,53 @@ export default {
 
 .empty {
   padding: 42rpx 0;
-  color: #697597;
+  color: #718078;
   text-align: center;
 }
 
 .error {
   color: #d64b3f;
+}
+
+.account-records {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(217, 120, 23, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #fffaf0 0%, #fff3dc 100%);
+}
+
+.filter-card,
+.list-card,
+.entry-row {
+  border-color: #efd7aa;
+  background: linear-gradient(145deg, #ffffff 0%, #fff8e8 100%);
+}
+
+.section-title,
+.supplier {
+  color: #6f3d05;
+}
+
+.amount.paid,
+.profit,
+.status.paid,
+.pager-button {
+  color: #d97817;
+}
+
+.filter-button,
+.date-change,
+.status.paid,
+.pager-button {
+  background: #fff1d1;
+}
+
+.pay-button {
+  background: #d97817;
+}
+
+.pager-current {
+  border-color: #efd7aa;
+  background: #ffffff;
 }
 </style>

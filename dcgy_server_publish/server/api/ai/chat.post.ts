@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     throw createError({
       statusCode: 400,
-      statusMessage: String(error?.message || 'AI 对话失败')
+      statusMessage: String(error?.message || '小东处理失败')
     })
   }
 })

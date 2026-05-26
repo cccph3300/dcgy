@@ -368,4 +368,40 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.retail-profit {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(11, 154, 135, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f2fffb 0%, #e7fbf6 100%);
+}
+
+.soft-card,
+.filter-card,
+.summary-card,
+.chart-card,
+.list-card {
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #effdfa 100%);
+}
+
+.section-title,
+.goods-name {
+  color: #0d4d45;
+}
+
+.row-money,
+.date-change,
+.summary-value {
+  color: #0b9a87;
+}
+
+.date-change,
+.tab.active {
+  background: #dff6f1;
+}
+
+.primary {
+  background: #0b9a87;
+}
 </style>

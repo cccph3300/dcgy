@@ -14,7 +14,8 @@ export default defineEventHandler(async (event) => {
   const result = await confirmAiOperation(token, staff.id, {
     customerId: Number(body?.customerId || 0),
     customerName: String(body?.customerName || '').trim(),
-    items: body?.items
+    items: body?.items,
+    supplierEntry: body?.supplierEntry
   })
   return {
     success: true,

@@ -421,6 +421,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 14rpx;
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
 }
 
 .head-card .soft-button {
@@ -436,17 +438,17 @@ export default {
 }
 
 .edit {
-  background: #fff6cf;
-  color: #17362f;
+  background: #f3efff;
+  color: #4b3c89;
 }
 
 .save {
-  background: #e8f6ed;
-  color: #166b4e;
+  background: #e9eefb;
+  color: #4d6ed8;
 }
 
 .pay {
-  background: #16945f;
+  background: #4d6ed8;
   color: #ffffff;
 }
 
@@ -454,7 +456,8 @@ export default {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
-  background: linear-gradient(135deg, #ffffff 0%, #f2fbf4 100%);
+  border-color: #cdd8fb;
+  background: linear-gradient(135deg, #ffffff 0%, #f4f7ff 100%);
 }
 
 .summary-card view {
@@ -464,7 +467,7 @@ export default {
 
 .strong {
   overflow: hidden;
-  color: #17362f;
+  color: #1f2f63;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -472,7 +475,7 @@ export default {
 
 .amount,
 .profit {
-  color: #16945f;
+  color: #4d6ed8;
 }
 
 .loss {
@@ -484,8 +487,8 @@ export default {
   min-width: 92rpx;
   height: 44rpx;
   border-radius: 12rpx;
-  background: #e8f6ed;
-  color: #16945f;
+  background: #e9eefb;
+  color: #4d6ed8;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 44rpx;
@@ -504,7 +507,7 @@ export default {
 
 .sheet-card {
   margin-bottom: 18rpx;
-  border: 2rpx solid #c9dcc9;
+  border: 2rpx solid #cdd8fb;
   border-radius: 16rpx;
   overflow: hidden;
   background: #ffffff;
@@ -512,7 +515,7 @@ export default {
 
 .sheet-title {
   padding: 20rpx;
-  background: #245277;
+  background: #4d6ed8;
   color: #ffffff;
   font-size: 36rpx;
   font-weight: 900;
@@ -550,7 +553,7 @@ export default {
 }
 
 .sheet-head {
-  background: #2b7a69;
+  background: #334a9a;
   color: #ffffff;
   font-weight: 900;
 }
@@ -565,14 +568,14 @@ export default {
   justify-content: space-between;
   min-height: 76rpx;
   background: #ffffff;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 28rpx;
   font-weight: 900;
 }
 
 .sheet-total-time {
   padding-left: 18rpx;
-  color: #415149;
+  color: #4b5b82;
   font-size: 24rpx;
   font-weight: 800;
 }
@@ -585,7 +588,7 @@ export default {
   min-height: 76rpx;
   align-items: center;
   padding: 0 18rpx;
-  background: #fff6cf;
+  background: #eef3ff;
 }
 
 .sheet-total-box text {
@@ -600,18 +603,18 @@ export default {
   display: flex;
   justify-content: space-between;
   padding: 12rpx 0;
-  border-bottom: 1rpx solid #eef2ee;
-  color: #415149;
+  border-bottom: 1rpx solid #e7ecfa;
+  color: #4b5b82;
   font-weight: 900;
 }
 
 .total-line.profit {
-  color: #16945f;
+  color: #4d6ed8;
 }
 
 .empty {
   padding: 42rpx 0;
-  color: #718078;
+  color: #697597;
   text-align: center;
 }
 

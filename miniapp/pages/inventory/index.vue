@@ -3,17 +3,17 @@
     <view class="header">
       <view class="eyebrow">东成果业</view>
       <view class="title">其他功能</view>
-      <view class="subtitle">库存、回收、配送和利润都在这里</view>
+      <view class="subtitle">按经营、入账和工具分块，常用入口更好找</view>
     </view>
 
-    <view class="module-section">
+    <view v-for="section in moduleSections" :key="section.title" class="module-section" :class="section.className">
       <view class="section-head">
-        <view class="section-title">批发模块</view>
-        <view class="section-note">点单、库存和批发经营</view>
+        <view class="section-title">{{ section.title }}</view>
+        <view class="section-note">{{ section.note }}</view>
       </view>
       <view class="module-grid">
         <view
-          v-for="item in modules"
+          v-for="item in section.items"
           :key="item.title"
           class="module-card"
           :class="item.className"
@@ -58,62 +58,104 @@ export default {
         desc: '商品上传、商品列表、零售点单和记录',
         url: '/subpackages/retail/index'
       },
-      modules: [
+      moduleSections: [
         {
-          title: '库存',
-          desc: '货物入库与库存管理',
-          url: '/subpackages/other/inventory/list',
-          className: 'inventory',
-          iconClass: 'inventory-icon'
+          title: '经营常用',
+          note: '库存、利润、客户和配送',
+          className: 'business-section',
+          items: [
+            {
+              title: '库存',
+              desc: '货物入库与库存管理',
+              url: '/subpackages/other/inventory/list',
+              className: 'inventory',
+              iconClass: 'inventory-icon'
+            },
+            {
+              title: '利润',
+              desc: '收入、成本和佣金统计',
+              url: '/subpackages/other/profit/index',
+              className: 'profit',
+              iconClass: 'profit-icon'
+            },
+            {
+              title: '客户列表',
+              desc: '查看客户和总欠账',
+              url: '/subpackages/other/customers/index',
+              className: 'customers',
+              iconClass: 'customers-icon'
+            },
+            {
+              title: '超市配送',
+              desc: '配送订单和门店记录',
+              url: '/subpackages/delivery/index',
+              className: 'delivery',
+              iconClass: 'delivery-icon'
+            }
+          ]
         },
         {
-          title: '回收站',
-          desc: '查看已删除或停用数据',
-          url: '/subpackages/other/recycle/index',
-          className: 'recycle',
-          iconClass: 'recycle-icon'
+          title: '货主入账',
+          note: '拿货、欠账和入账记录',
+          className: 'supplier-section',
+          items: [
+            {
+              title: '入账',
+              desc: '记录货主拿货并按需自动入库',
+              url: '/subpackages/other/accounts/create',
+              className: 'account-create-card',
+              iconClass: 'account-icon'
+            },
+            {
+              title: '货主',
+              desc: '查看货主和总欠账',
+              url: '/subpackages/other/accounts/suppliers',
+              className: 'suppliers',
+              iconClass: 'suppliers-icon'
+            },
+            {
+              title: '入账记录',
+              desc: '筛选、查看和处理入账记录',
+              url: '/subpackages/other/accounts/records',
+              className: 'account-records-card',
+              iconClass: 'records-icon'
+            }
+          ]
         },
         {
-          title: '超市配送',
-          desc: '配送订单和门店记录',
-          url: '/subpackages/delivery/index',
-          className: 'delivery',
-          iconClass: 'delivery-icon'
-        },
-        {
-          title: '利润',
-          desc: '收入、成本和佣金统计',
-          url: '/subpackages/other/profit/index',
-          className: 'profit',
-          iconClass: 'profit-icon'
-        },
-        {
-          title: '订单改单',
-          desc: '按日期查找并修改批发订单',
-          url: '/subpackages/other/orders/fix',
-          className: 'orders-fix',
-          iconClass: 'orders-fix-icon'
-        },
-        {
-          title: '漏单加单',
-          desc: '补录遗漏的批发订单',
-          url: '/subpackages/other/orders/add',
-          className: 'orders-add',
-          iconClass: 'orders-add-icon'
-        },
-        {
-          title: '客户列表',
-          desc: '查看客户和总欠账',
-          url: '/subpackages/other/customers/index',
-          className: 'customers',
-          iconClass: 'customers-icon'
-        },
-        {
-          title: '打印记录',
-          desc: '查看、重打和删除打印记录',
-          url: '/subpackages/other/prints/index',
-          className: 'prints',
-          iconClass: 'prints-icon'
+          title: '订单工具',
+          note: '回收、改单、补单和打印',
+          className: 'tools-section',
+          items: [
+            {
+              title: '回收站',
+              desc: '查看已删除或停用数据',
+              url: '/subpackages/other/recycle/index',
+              className: 'recycle',
+              iconClass: 'recycle-icon'
+            },
+            {
+              title: '订单改单',
+              desc: '按日期查找并修改批发订单',
+              url: '/subpackages/other/orders/fix',
+              className: 'orders-fix',
+              iconClass: 'orders-fix-icon'
+            },
+            {
+              title: '漏单加单',
+              desc: '补录遗漏的批发订单',
+              url: '/subpackages/other/orders/add',
+              className: 'orders-add',
+              iconClass: 'orders-add-icon'
+            },
+            {
+              title: '打印记录',
+              desc: '查看、重打和删除打印记录',
+              url: '/subpackages/other/prints/index',
+              className: 'prints',
+              iconClass: 'prints-icon'
+            }
+          ]
         }
       ]
     }
@@ -179,14 +221,27 @@ export default {
 }
 
 .module-section {
-  margin-top: 18rpx;
+  margin-top: 24rpx;
+  padding-top: 2rpx;
 }
 
 .section-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 0 4rpx 12rpx;
+  padding: 0 4rpx 12rpx 18rpx;
+  position: relative;
+}
+
+.section-head::before {
+  position: absolute;
+  left: 4rpx;
+  top: 8rpx;
+  width: 8rpx;
+  height: 32rpx;
+  border-radius: 8rpx;
+  background: #16945f;
+  content: "";
 }
 
 .section-title {
@@ -199,6 +254,61 @@ export default {
   color: #718078;
   font-size: 22rpx;
   font-weight: 800;
+}
+
+.business-section .section-head::before {
+  background: #16945f;
+}
+
+.business-section .section-title {
+  color: #123c31;
+}
+
+.business-section .module-card {
+  border-color: #cfe9d5;
+  background: linear-gradient(145deg, #ffffff 0%, #eef9ef 100%);
+}
+
+.supplier-section .section-head::before {
+  background: #d97817;
+}
+
+.supplier-section .section-title {
+  color: #6f3d05;
+}
+
+.supplier-section .section-note {
+  color: #9a6b2f;
+}
+
+.supplier-section .module-card {
+  border-color: #efd7aa;
+  background: linear-gradient(145deg, #ffffff 0%, #fff7e4 100%);
+}
+
+.supplier-section .module-icon {
+  background: #d97817;
+}
+
+.tools-section .section-head::before {
+  background: #245277;
+}
+
+.tools-section .section-title {
+  color: #17364e;
+}
+
+.tools-section .section-note {
+  color: #66798a;
+}
+
+.tools-section .module-card {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #eef7ff 100%);
+}
+
+.tools-section .module-icon {
+  background: #245277;
 }
 
 .module-grid {
@@ -341,11 +451,11 @@ export default {
 
 .delivery {
   border-color: #dcd4f5;
-  background: linear-gradient(145deg, #ffffff 0%, #f2efff 100%);
+  background: linear-gradient(145deg, #ffffff 0%, #edf1ff 100%) !important;
 }
 
 .delivery-icon {
-  background: #6f58c9;
+  background: #4d6ed8;
 }
 
 .profit {
@@ -354,6 +464,21 @@ export default {
 
 .prints {
   background: linear-gradient(145deg, #ffffff 0%, #eef7ff 100%);
+}
+
+.account-create-card {
+  border-color: #cfe9da;
+  background: linear-gradient(145deg, #ffffff 0%, #eaf8ef 100%);
+}
+
+.suppliers {
+  border-color: #f2dcc0;
+  background: linear-gradient(145deg, #ffffff 0%, #fff8e8 100%);
+}
+
+.account-records-card {
+  border-color: #dcd4f5;
+  background: linear-gradient(145deg, #ffffff 0%, #f2efff 100%);
 }
 
 .customers {
@@ -395,7 +520,7 @@ export default {
 }
 
 .orders-add-icon {
-  background: #16945f;
+  background: #245277;
 }
 
 .orders-add-icon::before {
@@ -464,17 +589,100 @@ export default {
   box-shadow: 9rpx 11rpx 0 -6rpx #ffffff;
 }
 
+.account-icon {
+  background: #16945f;
+}
+
+.account-icon::before {
+  left: 14rpx;
+  top: 14rpx;
+  width: 34rpx;
+  height: 38rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 6rpx;
+}
+
+.account-icon::after {
+  left: 22rpx;
+  top: 25rpx;
+  width: 22rpx;
+  height: 5rpx;
+  border-radius: 5rpx;
+  background: #ffffff;
+  box-shadow: 0 10rpx 0 #ffffff;
+}
+
+.suppliers-icon {
+  background: #d97817;
+}
+
+.suppliers-icon::before {
+  left: 12rpx;
+  top: 15rpx;
+  width: 20rpx;
+  height: 20rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 50%;
+}
+
+.suppliers-icon::after {
+  left: 9rpx;
+  top: 38rpx;
+  width: 27rpx;
+  height: 15rpx;
+  border: 5rpx solid #ffffff;
+  border-bottom: 0;
+  border-radius: 18rpx 18rpx 0 0;
+  box-shadow: 23rpx -18rpx 0 -6rpx #ffffff, 28rpx 2rpx 0 -6rpx #ffffff;
+}
+
+.records-icon {
+  background: #6f58c9;
+}
+
+.records-icon::before {
+  left: 15rpx;
+  top: 14rpx;
+  width: 32rpx;
+  height: 36rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 6rpx;
+}
+
+.records-icon::after {
+  left: 24rpx;
+  top: 24rpx;
+  width: 25rpx;
+  height: 6rpx;
+  border-radius: 6rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 0 #ffffff;
+}
+
 .retail-section {
   padding-top: 8rpx;
 }
 
+.retail-section .section-head::before {
+  background: #0b9a87;
+}
+
+.retail-section .section-title {
+  color: #0d4d45;
+}
+
+.retail-section .section-note {
+  color: #587d78;
+}
+
 .retail-card {
   min-height: 178rpx;
-  background: linear-gradient(145deg, #ffffff 0%, #e9f8ef 100%);
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #e7fbf6 100%);
 }
 
 .retail-icon {
-  background: #16945f;
+  background: #0b9a87;
 }
 
 .retail-icon::before {

@@ -6,6 +6,7 @@ import { chinaDayRange, chinaMonthRange, todayInChina } from './date-query'
 import { formatDecimal } from './number'
 import { buildOrderItems, createOrderNo, deductStock, mapOrderItem, restoreStock } from './orders'
 import { recalculateCustomerDebt } from './customer-payments'
+import { buildSupplierEntryInput, createSupplierEntryNo, mapSupplierEntry, recalculateSupplierDebt, upsertSupplierStockGoods } from './supplier-entries'
 
 type AiTable = {
   title: string
@@ -28,7 +29,7 @@ type QueryOrdersAction = {
 }
 
 type QueryTableAction = {
-  kind: 'query_goods' | 'query_debts' | 'query_profit' | 'query_supermarket_orders'
+  kind: 'query_goods' | 'query_debts' | 'query_profit' | 'query_supermarket_orders' | 'query_supplier_debts' | 'query_supplier_entries'
   title: string
   summary: string
   table: AiTable
@@ -48,6 +49,29 @@ type CreateOrderAction = {
   goodsAmount: number
   commission: number
   rowCount: number
+}
+
+type SupplierEntryDraft = {
+  supplierName: string
+  goodsName: string
+  unitType: 'weight' | 'qty'
+  quantity: number
+  weight: number | null
+  totalAmount: number
+  totalCommission: number
+  costPrice: number
+  commission: number
+  salePrice: number
+  stockMode: 'auto_stocked' | 'record_only'
+}
+
+type CreateSupplierEntryAction = {
+  kind: 'create_supplier_entry'
+  title: string
+  summary: string
+  token: string
+  draft: SupplierEntryDraft
+  table: AiTable
 }
 
 type AppendOrderAction = CreateOrderAction & {
@@ -86,7 +110,7 @@ type GoodsMutationAction = {
   table: AiTable
 }
 
-type AiAction = QueryOrdersAction | QueryTableAction | CreateOrderAction | AppendOrderAction | GoodsMutationAction
+type AiAction = QueryOrdersAction | QueryTableAction | CreateOrderAction | AppendOrderAction | GoodsMutationAction | CreateSupplierEntryAction
 
 type AiDataResult = {
   handled: boolean
@@ -150,11 +174,12 @@ type DraftItem = {
 }
 
 type DraftPayload = {
-  kind: 'create_order' | 'append_order' | 'goods_mutation'
+  kind: 'create_order' | 'append_order' | 'goods_mutation' | 'create_supplier_entry'
   staffId: number
   expiresAt: string
   orderId?: number
   goodsMutation?: GoodsMutationDraft
+  supplierEntry?: SupplierEntryDraft
 }
 
 type ParsedDraft = {
@@ -169,9 +194,10 @@ type ParsedDraft = {
 }
 
 export type AiStructuredIntent = {
-  intent?: 'query_orders' | 'query_goods' | 'query_debts' | 'query_profit' | 'query_supermarket_orders' | 'create_order' | 'append_order' | 'query_customer' | 'chat' | 'unknown'
+  intent?: 'query_orders' | 'query_goods' | 'query_debts' | 'query_profit' | 'query_supermarket_orders' | 'query_supplier_debts' | 'query_supplier_entries' | 'create_supplier_entry' | 'create_order' | 'append_order' | 'query_customer' | 'chat' | 'unknown'
   confidence?: number
   customerName?: string
+  supplierName?: string
   goodsName?: string
   supermarketName?: string
   orderNo?: string
@@ -212,6 +238,9 @@ const INVENTORY_MUTATION_WORDS = '删除|删掉|移除|停用|清空|清零|归�
 const DEBT_WORDS = '欠款|欠账|欠帐|未收|未付款|没付款|赊账|客户欠款'
 const PROFIT_WORDS = '利润|盈利|赚了|毛利|成本|销售额|营收'
 const SUPERMARKET_WORDS = '超市|配送|送货|商超'
+const SUPPLIER_WORDS = '货主|供货商|供应商|上家'
+const SUPPLIER_ENTRY_WORDS = '入账|入的账|入帐|拿货记录|进货记录|货主记录'
+const SUPPLIER_ENTRY_CREATE_WORDS = '入账|入帐|拿了|拿货|进货|采购|到货'
 
 function normalizeText(value: string) {
   return String(value || '')
@@ -278,8 +307,63 @@ function formatOrderTime(value: Date) {
   }).format(value)
 }
 
+function currentChinaYear() {
+  return Number(todayInChina().slice(0, 4))
+}
+
+function normalizeDateText(year: number, month: number, day: number) {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return ''
+  const check = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return ''
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function parseFlexibleDateToken(token: string) {
+  const text = String(token || '').trim()
+  if (/^(今天|今日)$/.test(text)) return todayInChina()
+  if (/^(昨天|昨日)$/.test(text)) {
+    const todayRange = chinaDayRange(todayInChina())
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date(todayRange.start.getTime() - 24 * 60 * 60 * 1000))
+  }
+
+  const full = text.match(/^(\d{4})[年\-/.](\d{1,2})[月\-/.](\d{1,2})(?:日|号)?$/)
+  if (full) return normalizeDateText(Number(full[1]), Number(full[2]), Number(full[3]))
+
+  const short = text.match(/^(\d{1,2})[月\-/.](\d{1,2})(?:日|号)?$/)
+  if (short) return normalizeDateText(currentChinaYear(), Number(short[1]), Number(short[2]))
+
+  return ''
+}
+
+function explicitDateRange(text: string) {
+  const normalized = normalizeText(text)
+  const dateToken = String.raw`(?:(?:\d{4}[年\-/.])?\d{1,2}[月\-/.]\d{1,2}(?:日|号)?|今天|今日|昨天|昨日)`
+  const rangeMatch = normalized.match(new RegExp(`(${dateToken})\\s*(?:到|至|~|—|--|-)\\s*(${dateToken})`))
+  if (rangeMatch) {
+    const startDate = parseFlexibleDateToken(rangeMatch[1])
+    const endDate = parseFlexibleDateToken(rangeMatch[2])
+    if (startDate && endDate) {
+      const startRange = chinaDayRange(startDate)
+      const endRange = chinaDayRange(endDate)
+      const start = startRange.start <= endRange.start ? startRange.start : endRange.start
+      const end = startRange.start <= endRange.start ? endRange.end : startRange.end
+      return { label: `${startDate}到${endDate}`, start, end }
+    }
+  }
+
+  const singleMatch = normalized.match(new RegExp(`(${dateToken})`))
+  if (singleMatch) {
+    const date = parseFlexibleDateToken(singleMatch[1])
+    if (date) return { label: date, ...chinaDayRange(date) }
+  }
+
+  return null
+}
+
 function getDateRange(text: string) {
   const normalized = normalizeCompact(text)
+  const explicitRange = explicitDateRange(text)
+  if (explicitRange) return explicitRange
 
   if (/(全部|所有|历史|历史订单|全部时间|不限时间)/.test(normalized)) {
     return { label: '全部' }
@@ -307,6 +391,11 @@ function dateWhere(range: { start?: Date, end?: Date }) {
   return range.start && range.end ? { gte: range.start, lt: range.end } : undefined
 }
 
+function hasDateHint(text: string) {
+  const normalized = normalizeCompact(text)
+  return /(今天|今日|昨天|昨日|本月|这个月|当月|月内|上月|上个月|\d{4}[年\-/.]\d{1,2}[月\-/.]\d{1,2}(?:日|号)?|\d{1,2}[月\-/.]\d{1,2}(?:日|号)?)/.test(normalized)
+}
+
 function normalizeOrderStatus(value: unknown) {
   const text = normalizeCompact(String(value || ''))
   if (!text || text === 'all' || text === 'unspecified') return ''
@@ -325,6 +414,14 @@ function normalizeSupermarketStatus(value: unknown) {
   return ''
 }
 
+function normalizeSupplierEntryStatus(value: unknown) {
+  const text = normalizeCompact(String(value || ''))
+  if (!text || text === 'all' || text === 'unspecified') return ''
+  if (/(未付|未付款|未结账|没付|欠款|赊账|unpaid)/i.test(text)) return 'unpaid'
+  if (/(已付|已付款|已结账|付清|结清|paid)/i.test(text)) return 'paid'
+  return ''
+}
+
 function limitedTake(value: unknown, fallback = 20, max = 50) {
   const numberValue = Number(value || fallback)
   if (!Number.isFinite(numberValue)) return fallback
@@ -333,6 +430,7 @@ function limitedTake(value: unknown, fallback = 20, max = 50) {
 
 function getDateRangeByKey(key: unknown, fallbackText: string) {
   const value = String(key || '').trim()
+  if (hasDateHint(fallbackText)) return getDateRange(fallbackText)
   if (value === 'all') return { label: '全部' }
   if (value === 'yesterday') {
     const today = todayInChina()
@@ -445,11 +543,145 @@ function isSupermarketOrderQuery(text: string) {
   return new RegExp(`(${SUPERMARKET_WORDS})`).test(normalized) && new RegExp(`(${QUERY_WORDS}|${ORDER_WORDS}|${PROFIT_WORDS})`).test(normalized)
 }
 
+function isSupplierEntryQuery(text: string) {
+  const normalized = normalizeCompact(text)
+  return new RegExp(`(${SUPPLIER_ENTRY_WORDS})`).test(normalized) &&
+    new RegExp(`(${QUERY_WORDS}|${SUPPLIER_WORDS}|哪天|什么时候|日期|明细|记录|全部|所有|今天|昨天|本月|上月)`).test(normalized)
+}
+
+function isSupplierDebtQuery(text: string) {
+  const normalized = normalizeCompact(text)
+  if (!new RegExp(`(${SUPPLIER_WORDS})`).test(normalized)) return false
+  return /(欠|欠款|欠账|欠帐|未付|未付款|没付|没给钱|还没给|多少钱|总共|合计|赊账|没结清|没结账)/.test(normalized)
+}
+
 function extractGoodsQueryName(text: string) {
   return normalizeText(text)
     .replace(new RegExp(`(${QUERY_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), '')
     .replace(/(今天|昨日|昨天|本月|上月|全部|所有|最近|当前|现在|一下|还有多少|多少)/g, '')
     .trim()
+}
+
+function cleanSupplierKeyword(value: string) {
+  const cleaned = normalizeText(value)
+    .replace(new RegExp(`(${QUERY_WORDS}|${DEBT_WORDS}|${SUPPLIER_WORDS}|${SUPPLIER_ENTRY_WORDS}|多少钱|多少|总共|一共|共|总计|合计|欠|没给钱|没付清|未付清|已付清|未结清|已结清|没结清|没付|未付|已付|付清|结清|记录|明细|日期|哪天|什么时候|paid|unpaid|all)`, 'gi'), ' ')
+    .replace(/(今天|今日|昨天|昨日|本月|这个月|当月|月内|上月|上个月|全部|所有|历史|不限时间|最近|当前|现在|一下|从|到|至|起|的)/g, ' ')
+    .replace(/\d{4}[年\-/.]\d{1,2}[月\-/.]\d{1,2}(?:日|号)?/g, ' ')
+    .replace(/\d{1,2}[月\-/.]\d{1,2}(?:日|号)?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (/^(哪|哪里|哪些|谁|什么|多少|所有|全部|总共|一共|合计|欠|清|的|到|至|从|all|paid|unpaid|们|各位|大家|货主|货主们|供应商|供应商们|供货商|供货商们)$/i.test(cleaned)) return ''
+  return cleaned.length <= 80 ? cleaned : ''
+}
+
+function extractSupplierName(text: string) {
+  const normalized = normalizeText(text)
+  const patterns = [
+    /欠(.+?)(?:货主|供货商|供应商|上家)?(?:多少钱|多少|欠款|欠账|欠帐|钱)?$/,
+    /(.+?)(?:货主|供货商|供应商|上家)(?:欠|未付|没付|没给钱|多少钱|多少|赊账)/,
+    /(?:货主|供货商|供应商|上家)(.+?)(?:欠|未付|没付|没给钱|多少钱|多少|赊账)/,
+    /(?:查|查询|看|统计|显示|列出)?(.+?)(?:的)?(?:货主欠款|货主欠账|货主赊账|赊账详情)/
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const name = match?.[1] ? cleanSupplierKeyword(match[1]) : ''
+    if (name) return name
+  }
+  return ''
+}
+
+function extractSupplierEntryKeyword(text: string) {
+  const normalized = normalizeText(text)
+  const patterns = [
+    /(?:查|查询|看|统计|显示|列出)?(.+?)(?:哪天|什么时候)(?:入账|入的账|入帐)/,
+    /(?:查|查询|看|统计|显示|列出)?(.+?)(?:的)?(?:入账记录|入帐记录|拿货记录|进货记录)/,
+    /(?:入账|入帐|拿货|进货)(?:记录|明细)?(.+)$/
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const keyword = match?.[1] ? cleanSupplierKeyword(match[1]) : ''
+    if (keyword) return keyword
+  }
+  return cleanSupplierKeyword(normalized)
+}
+
+function isSupplierEntryCreateIntent(text: string) {
+  const normalized = normalizeCompact(text)
+  if (!new RegExp(`(${SUPPLIER_ENTRY_CREATE_WORDS})`).test(normalized)) return false
+  return /(入账|入帐)/.test(normalized) && /(在|从).+?(拿|进|采购|到货)|拿了|进了|采购/.test(normalized) && /(总共|总金额|合计|共)\d/.test(normalized)
+}
+
+function extractSupplierNameForEntryCreate(text: string) {
+  const normalized = normalizeText(text)
+  const patterns = [
+    /(?:在|从)\s*(.+?)\s*(?:拿了|拿|进了|进货|采购|入了|到货)/,
+    /(?:货主|供货商|供应商)\s*(.+?)\s*(?:拿了|拿|进了|进货|采购|入账|入帐)/
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const name = match?.[1] ? cleanSupplierKeyword(match[1]) : ''
+    if (name) return name
+  }
+  return ''
+}
+
+function extractSupplierEntryGoodsName(text: string) {
+  const normalized = normalizeText(text)
+  const patterns = [
+    /\d+(?:\.\d+)?\s*(?:件|个|箱|筐|袋|斤|公斤|千克|kg|KG)\s*([\u4e00-\u9fa5A-Za-z0-9]{1,40})/,
+    /(?:拿了|拿|进了|进货|采购)\s*([\u4e00-\u9fa5A-Za-z0-9]{1,40})/
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    if (!match?.[1]) continue
+    const name = cleanSupplierKeyword(match[1])
+      .replace(/(总共|总金额|合计|佣金|按件|按斤|按重量|按个|算的).*$/g, '')
+      .trim()
+    if (name) return name
+  }
+  return ''
+}
+
+function extractAmountByWords(text: string, words: string) {
+  const match = normalizeText(text).match(new RegExp(`(?:${words})\\s*([\\d.]+)\\s*(?:元|块钱|块)?`))
+  return match?.[1] ? Number(match[1]) : 0
+}
+
+function extractSupplierEntryDraft(content: string): SupplierEntryDraft | string {
+  const supplierName = extractSupplierNameForEntryCreate(content)
+  const goodsName = extractSupplierEntryGoodsName(content)
+  const quantityMatch = normalizeText(content).match(/(\d+(?:\.\d+)?)\s*(?:件|个|箱|筐|袋)/)
+  const weightMatch = normalizeText(content).match(/(\d+(?:\.\d+)?)\s*(斤|公斤|千克|kg|KG)/)
+  const quantity = quantityMatch?.[1] ? Number(quantityMatch[1]) : 0
+  const rawWeight = weightMatch?.[1] ? Number(weightMatch[1]) : 0
+  const weight = weightMatch?.[2] && /公斤|千克|kg|KG/.test(weightMatch[2]) ? rawWeight * 2 : rawWeight
+  const totalAmount = extractAmountByWords(content, '总共|总金额|合计|共')
+  const totalCommission = extractAmountByWords(content, '总佣金|佣金') || 0
+  const unitType = /(按斤|按重量|按重|按斤算|按重量算|每斤)/.test(normalizeCompact(content)) ? 'weight' : 'qty'
+
+  if (!supplierName) return '已识别为入账需求，但没有识别到货主。请说“在某某货主拿了...”'
+  if (!goodsName) return '已识别为入账需求，但没有识别到品名。请补充品名。'
+  if (!quantity || quantity <= 0) return `请补充“${goodsName}”的件数。`
+  if (unitType === 'weight' && (!weight || weight <= 0)) return `按斤算时请补充“${goodsName}”的重量。`
+  if (!totalAmount || totalAmount <= 0) return `请补充“${goodsName}”的总金额。`
+  if (totalCommission < 0 || totalCommission > totalAmount) return '佣金不能小于0，也不能大于总金额。'
+
+  const billingAmount = unitType === 'weight' ? weight : quantity
+  const costPrice = Number(((totalAmount - totalCommission) / billingAmount).toFixed(2))
+  const commission = Number((totalCommission / quantity).toFixed(2))
+  return {
+    supplierName,
+    goodsName,
+    unitType,
+    quantity,
+    weight: unitType === 'weight' ? Number(weight.toFixed(2)) : null,
+    totalAmount: Number(totalAmount.toFixed(2)),
+    totalCommission: Number(totalCommission.toFixed(2)),
+    costPrice,
+    commission,
+    salePrice: costPrice,
+    stockMode: 'auto_stocked'
+  }
 }
 
 function parseChineseNumber(value: string) {
@@ -872,6 +1104,28 @@ function buildGoodsMutationAction(payload: DraftPayload, mutation: GoodsMutation
   }
 }
 
+function buildSupplierEntryAction(payload: DraftPayload, draft: SupplierEntryDraft): CreateSupplierEntryAction {
+  const summary = `已生成入账草稿：货主 ${draft.supplierName}，${draft.goodsName} ${formatDecimal(draft.quantity)}件，${draft.unitType === 'weight' ? `${formatDecimal(draft.weight || 0)}斤，` : ''}总金额 ￥${formatDecimal(draft.totalAmount)}，佣金 ￥${formatDecimal(draft.totalCommission)}。确认后会自动入库并记录欠款。`
+  return {
+    kind: 'create_supplier_entry',
+    title: `${draft.supplierName}入账草稿`,
+    summary,
+    token: signDraft(payload),
+    draft,
+    table: buildTable('入账草稿', ['货主', '品名', '计费', '件数', '重量', '总金额', '总佣金', '成本', '售价'], [[
+      draft.supplierName,
+      draft.goodsName,
+      draft.unitType === 'weight' ? '按斤' : '按件',
+      formatDecimal(draft.quantity),
+      draft.weight ? `${formatDecimal(draft.weight)}斤` : '-',
+      `￥${formatDecimal(draft.totalAmount)}`,
+      `￥${formatDecimal(draft.totalCommission)}`,
+      `￥${formatDecimal(draft.costPrice)}`,
+      `￥${formatDecimal(draft.salePrice)}`
+    ]])
+  }
+}
+
 function extractContextFromText(content: string): AiConversationContext {
   const compact = normalizeCompact(content)
   const orderNo = compact.match(/DD\d{10,}/i)?.[0]
@@ -903,7 +1157,7 @@ function isSimpleCustomerNameReply(content: string) {
   const normalized = normalizeCompact(content)
   if (!normalized || normalized.length > 20) return ''
   if (/\d/.test(normalized)) return ''
-  if (new RegExp(`(${QUERY_WORDS}|${CREATE_WORDS}|${APPEND_WORDS}|${ORDER_WORDS}|${INVENTORY_WORDS}|${DEBT_WORDS}|${PROFIT_WORDS})`).test(normalized)) return ''
+  if (new RegExp(`(${QUERY_WORDS}|${CREATE_WORDS}|${APPEND_WORDS}|${ORDER_WORDS}|${INVENTORY_WORDS}|${DEBT_WORDS}|${PROFIT_WORDS}|${SUPPLIER_WORDS}|${SUPPLIER_ENTRY_WORDS})`).test(normalized)) return ''
   return isMeaningfulCustomerName(content)
 }
 
@@ -1280,6 +1534,151 @@ async function answerDebtQuestion(plan: AiStructuredIntent): Promise<AiDataResul
   }
 }
 
+async function answerSupplierDebtQuestion(plan: AiStructuredIntent, content = ''): Promise<AiDataResult> {
+  const supplierName = cleanSupplierKeyword(cleanStructuredName(plan.supplierName || plan.customerName)) || extractSupplierName(content)
+  const take = limitedTake(plan.limit, 20, 20)
+  const suppliers = await prisma.supplier.findMany({
+    where: supplierName ? { name: { contains: supplierName } } : {},
+    select: { id: true, name: true, partialPayment: true },
+    take: supplierName ? 20 : 500,
+    orderBy: { id: 'desc' }
+  })
+  const supplierIds = suppliers.map(supplier => supplier.id)
+  const debts = supplierIds.length
+    ? await prisma.supplierEntry.groupBy({
+      by: ['supplierId'],
+      where: { supplierId: { in: supplierIds }, status: 'unpaid' },
+      _sum: { totalAmount: true },
+      _count: { _all: true }
+    })
+    : []
+  const supplierMap = new Map(suppliers.map(supplier => [supplier.id, supplier]))
+  const allRows = debts.map((debt) => {
+    const supplier = supplierMap.get(debt.supplierId)
+    const totalDebt = Number(debt._sum.totalAmount || 0)
+    const partialPayment = Math.min(Number(supplier?.partialPayment || 0), totalDebt)
+    const unpaidAmount = Math.max(totalDebt - partialPayment, 0)
+    return {
+      supplierName: supplier?.name || '',
+      entryCount: debt._count._all || 0,
+      totalDebt,
+      partialPayment,
+      unpaidAmount
+    }
+  }).filter(row => row.unpaidAmount > 0 || supplierName).sort((a, b) => b.unpaidAmount - a.unpaidAmount)
+
+  const subject = supplierName ? `“${supplierName}”货主` : '货主'
+  const totalUnpaid = allRows.reduce((sum, row) => sum + row.unpaidAmount, 0)
+  const totalDebt = allRows.reduce((sum, row) => sum + row.totalDebt, 0)
+  const totalPartialPayment = allRows.reduce((sum, row) => sum + row.partialPayment, 0)
+  const rows = allRows.slice(0, take)
+  if (!rows.length) {
+    const summary = supplierName && suppliers.length
+      ? `${subject}当前没有未付入账，欠款为 ￥0。`
+      : `没有查到${subject}未付欠款。`
+    return {
+      handled: true,
+      answer: summary,
+      action: buildTableAction('query_supplier_debts', `${subject}欠款`, summary, ['货主', '未付入账', '欠款', '已抵扣', '未付'], [])
+    }
+  }
+
+  const limitedText = allRows.length > rows.length ? `本次只显示前 ${rows.length} 个货主。` : ''
+  const summary = supplierName
+    ? `${subject}未付 ￥${formatDecimal(totalUnpaid)}，未付入账 ${rows.reduce((sum, row) => sum + row.entryCount, 0)} 笔。${limitedText}`
+    : `总共欠货主们 ￥${formatDecimal(totalUnpaid)}，涉及 ${allRows.length} 个货主；入账欠款 ￥${formatDecimal(totalDebt)}，已抵扣 ￥${formatDecimal(totalPartialPayment)}。${limitedText}`
+
+  return {
+    handled: true,
+    answer: summary,
+    action: buildTableAction('query_supplier_debts', `${subject}欠款`, summary, ['货主', '未付入账', '欠款', '已抵扣', '未付'], rows.map(row => [
+      row.supplierName,
+      `${row.entryCount}`,
+      `￥${formatDecimal(row.totalDebt)}`,
+      `￥${formatDecimal(row.partialPayment)}`,
+      `￥${formatDecimal(row.unpaidAmount)}`
+    ]))
+  }
+}
+
+function supplierEntryStatusText(status: string) {
+  return status === 'paid' ? '已付清' : '未付'
+}
+
+function supplierEntryUnitText(entry: { unitType: string, quantity: unknown, weight?: unknown }) {
+  const quantity = `${formatDecimal(entry.quantity)}件`
+  if (entry.unitType === 'weight' && entry.weight) return `${quantity}/${formatDecimal(entry.weight)}斤`
+  return quantity
+}
+
+async function answerSupplierEntryQuestion(plan: AiStructuredIntent, content: string): Promise<AiDataResult> {
+  const structuredKeyword = cleanSupplierKeyword(cleanStructuredName(plan.goodsName || plan.supplierName || plan.customerName))
+  const keyword = structuredKeyword || extractSupplierEntryKeyword(content)
+  const status = normalizeSupplierEntryStatus(content) || normalizeSupplierEntryStatus(plan.status)
+  const range = getDateRangeByKey(plan.dateRange, content)
+  const createdAt = dateWhere(range)
+  const take = limitedTake(plan.limit, 20, 20)
+  const where = {
+    ...(status ? { status } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(keyword ? {
+      OR: [
+        { supplierName: { contains: keyword } },
+        { goodsName: { contains: keyword } }
+      ]
+    } : {})
+  }
+  const [total, aggregate, entries] = await Promise.all([
+    prisma.supplierEntry.count({ where }),
+    prisma.supplierEntry.aggregate({
+      where,
+      _sum: {
+        totalAmount: true,
+        totalCommission: true,
+        quantity: true,
+        weight: true
+      }
+    }),
+    prisma.supplierEntry.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take
+    })
+  ])
+
+  const subject = `${keyword ? `“${keyword}”` : '全部'}${status === 'paid' ? '已付清' : status === 'unpaid' ? '未付' : ''}`
+  if (!entries.length) {
+    const summary = `没有查到${subject}${range.label}入账记录。`
+    return {
+      handled: true,
+      answer: summary,
+      action: buildTableAction('query_supplier_entries', `${subject}${range.label}入账记录`, summary, ['时间', '货主', '品名', '数量', '总金额', '佣金', '状态'], [])
+    }
+  }
+
+  const limitedText = total > entries.length ? `本次只显示最近 ${entries.length} 条。` : ''
+  const summary = [
+    `查到${subject}${range.label}入账记录 ${total} 条。`,
+    `总金额 ￥${formatDecimal(aggregate._sum.totalAmount || 0)}，总佣金 ￥${formatDecimal(aggregate._sum.totalCommission || 0)}，件数 ${formatDecimal(aggregate._sum.quantity || 0)}。`,
+    aggregate._sum.weight ? `重量 ${formatDecimal(aggregate._sum.weight)}斤。` : '',
+    limitedText
+  ].filter(Boolean).join('')
+
+  return {
+    handled: true,
+    answer: summary,
+    action: buildTableAction('query_supplier_entries', `${subject}${range.label}入账记录`, summary, ['时间', '货主', '品名', '数量', '总金额', '佣金', '状态'], entries.map(entry => [
+      formatOrderTime(entry.createdAt),
+      entry.supplierName,
+      entry.goodsName,
+      supplierEntryUnitText(entry),
+      `￥${formatDecimal(entry.totalAmount)}`,
+      `￥${formatDecimal(entry.totalCommission)}`,
+      supplierEntryStatusText(entry.status)
+    ]))
+  }
+}
+
 async function answerProfitQuestion(plan: AiStructuredIntent, content: string): Promise<AiDataResult> {
   const range = getDateRangeByKey(plan.dateRange, content)
   const createdAt = dateWhere(range)
@@ -1599,6 +1998,22 @@ async function answerCreateOrderQuestion(content: string, staffId: number, conte
   return buildCreateOrderResult(staffId, extractCreateSegments(content), context)
 }
 
+async function answerCreateSupplierEntryQuestion(content: string, staffId: number): Promise<AiDataResult> {
+  if (!isSupplierEntryCreateIntent(content)) return { handled: false }
+  if (!staffId) return { handled: true, answer: '请先登录后再入账。' }
+
+  const draft = extractSupplierEntryDraft(content)
+  if (typeof draft === 'string') return { handled: true, answer: draft }
+  const payload: DraftPayload = {
+    kind: 'create_supplier_entry',
+    staffId,
+    expiresAt: new Date(Date.now() + AI_OPERATION_TTL_MS).toISOString(),
+    supplierEntry: draft
+  }
+  const action = buildSupplierEntryAction(payload, draft)
+  return { handled: true, answer: action.summary, action }
+}
+
 async function answerStructuredAiDataQuestion(content: string, staffId: number, plan: AiStructuredIntent, context?: AiConversationContext, pendingDraft?: PendingDraftContext | null): Promise<AiDataResult> {
   if (!plan || plan.intent === 'chat' || plan.intent === 'unknown') return { handled: false }
   if (plan.needsClarification) {
@@ -1611,6 +2026,9 @@ async function answerStructuredAiDataQuestion(content: string, staffId: number, 
   if (plan.intent === 'query_customer') return answerCustomerQuestion(plan)
   if (plan.intent === 'query_goods') return answerGoodsQuestion(plan, content)
   if (plan.intent === 'query_debts') return answerDebtQuestion(plan)
+  if (plan.intent === 'query_supplier_debts') return answerSupplierDebtQuestion(plan, content)
+  if (plan.intent === 'query_supplier_entries') return answerSupplierEntryQuestion(plan, content)
+  if (plan.intent === 'create_supplier_entry') return answerCreateSupplierEntryQuestion(content, staffId)
   if (plan.intent === 'query_profit') return answerProfitQuestion(plan, content)
   if (plan.intent === 'query_supermarket_orders') return answerSupermarketOrderQuestion(plan, content)
 
@@ -1667,7 +2085,19 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
   const inventoryMutationResult = await answerInventoryMutationQuestion(content, staffId)
   if (inventoryMutationResult.handled) return inventoryMutationResult
 
+  const createSupplierEntryResult = await answerCreateSupplierEntryQuestion(content, staffId)
+  if (createSupplierEntryResult.handled) return createSupplierEntryResult
+
   if (dataContext?.structuredIntent) {
+    if (isSupplierEntryQuery(content)) {
+      const supplierEntryResult = await answerSupplierEntryQuestion(dataContext.structuredIntent, content)
+      if (supplierEntryResult.handled) return supplierEntryResult
+    }
+    if (isSupplierDebtQuery(content)) {
+      const supplierDebtResult = await answerSupplierDebtQuestion(dataContext.structuredIntent, content)
+      if (supplierDebtResult.handled) return supplierDebtResult
+    }
+
     const needsContext = dataContext.structuredIntent.intent === 'append_order' || dataContext.structuredIntent.intent === 'create_order'
     const context = needsContext ? await ensureConversationContext() : {}
     const structuredResult = await answerStructuredAiDataQuestion(content, staffId, dataContext.structuredIntent, context, dataContext.pendingDraft)
@@ -1697,6 +2127,16 @@ export async function answerAiDataQuestion(content: string, staffId = 0, dataCon
 
   const inventoryResult = await answerInventoryQuestion(content)
   if (inventoryResult.handled) return inventoryResult
+
+  if (isSupplierEntryQuery(content)) {
+    const supplierEntryResult = await answerSupplierEntryQuestion({ intent: 'query_supplier_entries' }, content)
+    if (supplierEntryResult.handled) return supplierEntryResult
+  }
+
+  if (isSupplierDebtQuery(content)) {
+    const supplierDebtResult = await answerSupplierDebtQuestion({ intent: 'query_supplier_debts' }, content)
+    if (supplierDebtResult.handled) return supplierDebtResult
+  }
 
   const debtResult = await answerDebtQuestionByText(content)
   if (debtResult.handled) return debtResult
@@ -1924,7 +2364,64 @@ async function confirmGoodsMutationFromDraft(mutation: GoodsMutationDraft) {
   throw createError({ statusCode: 400, statusMessage: '不支持的库存操作类型' })
 }
 
-export async function confirmAiOperation(token: string, staffId: number, editable?: { customerName?: string, customerId?: number, items?: unknown }) {
+async function createSupplierEntryFromDraft(staffId: number, editable?: { supplierEntry?: Partial<SupplierEntryDraft> }) {
+  const body = editable?.supplierEntry || {}
+  const input = buildSupplierEntryInput({
+    supplierName: body.supplierName,
+    goodsName: body.goodsName,
+    unitType: body.unitType,
+    quantity: body.quantity,
+    weight: body.weight,
+    totalAmount: body.totalAmount,
+    totalCommission: body.totalCommission ?? 0,
+    salePrice: body.salePrice,
+    stockMode: body.stockMode || 'auto_stocked'
+  })
+
+  return prisma.$transaction(async (tx) => {
+    const supplier = await tx.supplier.upsert({
+      where: { name: input.supplierName },
+      update: {},
+      create: { name: input.supplierName }
+    })
+    const goods = input.stockMode === 'auto_stocked'
+      ? await upsertSupplierStockGoods(tx, input)
+      : null
+    const staff = await tx.staffUser.findUnique({
+      where: { id: staffId },
+      select: { name: true }
+    })
+    if (!staff) {
+      throw createError({ statusCode: 404, statusMessage: '店员不存在' })
+    }
+
+    const entry = await tx.supplierEntry.create({
+      data: {
+        entryNo: createSupplierEntryNo(),
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        staffId,
+        staffName: staff.name,
+        goodsId: goods?.id || null,
+        goodsName: input.goodsName,
+        unitType: input.unitType,
+        quantity: input.quantity,
+        weight: input.weight,
+        totalAmount: input.totalAmount,
+        totalCommission: input.totalCommission,
+        costPrice: input.costPrice,
+        commission: input.commission,
+        salePrice: input.salePrice,
+        stockMode: input.stockMode
+      }
+    })
+
+    await recalculateSupplierDebt(supplier.id, tx)
+    return mapSupplierEntry(entry)
+  })
+}
+
+export async function confirmAiOperation(token: string, staffId: number, editable?: { customerName?: string, customerId?: number, items?: unknown, supplierEntry?: Partial<SupplierEntryDraft> }) {
   const draft = verifyDraft(token)
   if (!draft) {
     throw createError({ statusCode: 400, statusMessage: '操作凭证无效' })
@@ -1945,6 +2442,14 @@ export async function confirmAiOperation(token: string, staffId: number, editabl
   if (draft.kind === 'goods_mutation' && draft.goodsMutation) {
     return confirmGoodsMutationFromDraft(draft.goodsMutation)
   }
+  if (draft.kind === 'create_supplier_entry') {
+    return createSupplierEntryFromDraft(staffId, {
+      supplierEntry: {
+        ...draft.supplierEntry,
+        ...(editable?.supplierEntry || {})
+      }
+    })
+  }
 
-  throw createError({ statusCode: 400, statusMessage: '不支持的 AI 操作类型' })
+  throw createError({ statusCode: 400, statusMessage: '不支持的小东操作类型' })
 }

@@ -234,4 +234,34 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.print-detail-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(36, 82, 119, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6fbff 0%, #eef7ff 100%);
+}
+
+.soft-card,
+.detail-card,
+.content-card {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8ff 100%);
+}
+
+.section-title,
+.detail-title,
+.content-text {
+  color: #17364e;
+}
+
+.action-bar {
+  border-top-color: #c9dcea;
+  background: #f6fbff;
+}
+
+.soft-button:not(.danger-button) {
+  background: #e4f0fa;
+  color: #245277;
+}
 </style>

@@ -13,7 +13,7 @@ export function connectAiSocket({ onReady, onStart, onDelta, onDone, onError, on
     url: buildAiSocketUrl(),
     success() {},
     fail(err) {
-      onError?.(err?.errMsg || 'AI 连接失败')
+      onError?.(err?.errMsg || '小东连接失败')
     }
   })
 
@@ -34,11 +34,11 @@ export function connectAiSocket({ onReady, onStart, onDelta, onDone, onError, on
     if (data.type === 'delta') onDelta?.(data.content || '')
     if (data.type === 'result') onDelta?.({ content: data.content || '', action: data.action || null, final: true })
     if (data.type === 'done') onDone?.()
-    if (data.type === 'error') onError?.(data.message || 'AI 对话失败')
+    if (data.type === 'error') onError?.(data.message || '小东处理失败')
   })
 
   task.onError((err) => {
-    onError?.(err?.errMsg || 'AI 连接异常')
+    onError?.(err?.errMsg || '小东连接异常')
   })
 
   task.onClose(() => {

@@ -59,7 +59,7 @@ export default defineWebSocketHandler({
       })
       sendJson(peer, { type: 'done' })
     } catch (error: any) {
-      sendJson(peer, { type: 'error', message: String(error?.message || 'AI 对话失败') })
+      sendJson(peer, { type: 'error', message: String(error?.message || '小东处理失败') })
     }
   }
 })

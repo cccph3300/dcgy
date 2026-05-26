@@ -63,7 +63,7 @@ function buildMessages(input: AiChatInput): AiChatMessage[] {
     {
       role: 'system',
       content: [
-        '你是东成果业的 AI 智能对话助手，熟悉水果批发订单、客户欠款、库存和出单流程。',
+        '你是东成果业的 AI 智能对话助手，熟悉水果批发订单、客户欠款、货主入账、库存和出单流程。',
         '所有涉及数据库的请求，必须先在心里完成意图拆解：1. 用户想操作什么实体；2. 有哪些筛选条件；3. 缺失哪些必要信息；4. 是否可以执行。',
         '不要直接生成 SQL，不要展示 SQL。后端会优先识别并处理数据库增删改查意图；你只负责未被规则命中的自然对话和补充追问。',
         '如果缺少必要信息，输出给用户的只是一句反问，不要编造条件，不要瞎查。',
@@ -89,13 +89,14 @@ function buildIntentMessages(input: AiChatInput): AiChatMessage[] {
       role: 'system',
       content: [
         '你只负责把东成果业水果批发对话解析成 JSON，不要输出解释、Markdown 或多余文本。',
-        '支持 intent：query_orders、query_goods、query_debts、query_profit、query_supermarket_orders、query_customer、create_order、append_order、chat、unknown。',
-        '数据库字段词典：客户 customers.id/name/partial_payment；订单 orders.id/order_no/customer_id/customer_name/status/paid_at/created_at/total_amount/commission/profit_amount；订单明细 order_items.goods_name/quantity/weight/price/commission/subtotal；库存 goods.name/unit_type/sale_price/default_commission/stock/cost_price；超市配送 supermarket_orders.supermarket_name/status/created_at/total_amount/total_profit。',
+        '支持 intent：query_orders、query_goods、query_debts、query_profit、query_supermarket_orders、query_supplier_debts、query_supplier_entries、create_supplier_entry、query_customer、create_order、append_order、chat、unknown。',
+        '数据库字段词典：客户 customers.id/name/partial_payment；订单 orders.id/order_no/customer_id/customer_name/status/paid_at/created_at/total_amount/commission/profit_amount；订单明细 order_items.goods_name/quantity/weight/price/commission/subtotal；库存 goods.name/unit_type/sale_price/default_commission/stock/cost_price；超市配送 supermarket_orders.supermarket_name/status/created_at/total_amount/total_profit；货主 suppliers.name/partial_payment；入账 supplier_entries.supplier_name/goods_name/status/created_at/quantity/weight/total_amount/total_commission/cost_price/commission/sale_price。',
         '业务词映射：哪个客户/客户/客人 -> query_customer 或 customerName；全部订单/所有订单 -> query_orders + dateRange=all；最近/今天/昨天/本月/上月 -> created_at 时间范围；未付/未付款/未结账/欠款 -> status=unpaid；已付/已付款/已结账/付清 -> status=paid；毁单/取消/作废 -> status=cancelled；付款时间/什么时候付 -> paid_at。',
-        '功能映射：查库存/还有多少/缺货/零库存 -> query_goods，商品名放 goodsName；查欠款/谁欠钱/客户欠账 -> query_debts，客户名放 customerName；查利润/销售额/赚了多少 -> query_profit；查超市配送/商超订单 -> query_supermarket_orders，超市名放 supermarketName。',
-        '字段规则：customerName 是客户名；orderNo 是 DD 开头订单号；dateRange 只能是 today、yesterday、this_month、last_month、all、unspecified；status 只能是 paid、unpaid、cancelled、all、unspecified。',
+        '功能映射：查库存/还有多少/缺货/零库存 -> query_goods，商品名放 goodsName；查欠款/谁欠钱/客户欠账 -> query_debts，客户名放 customerName；查货主欠款/欠哪个货主/总共欠货主多少钱/欠某货主多少钱 -> query_supplier_debts，货主名放 supplierName；查入账记录/拿货记录/某货物哪天入账 -> query_supplier_entries，货主名放 supplierName，货物名放 goodsName；用户说“入账，在某货主拿了某货物，总共多少钱” -> create_supplier_entry；查利润/销售额/赚了多少 -> query_profit；查超市配送/商超订单 -> query_supermarket_orders，超市名放 supermarketName。',
+        '货主欠款规则：用户问“总共欠货主多少钱 / 还有哪些货主没给钱 / 哪里货主没给钱 / 欠哪个货主”时是全体货主汇总，supplierName 必须为空；只有出现明确货主名称，例如“批发市场A老板”，才填写 supplierName。',
+        '字段规则：customerName 是客户名；supplierName 是货主名；goodsName 是货物名；orderNo 是 DD 开头订单号；dateRange 只能是 today、yesterday、this_month、last_month、all、unspecified；status 只能是 paid、unpaid、cancelled、all、unspecified。',
         '库存规则：query_goods 可使用 goodsName、lowStock、zeroStock、limit。用户说“低库存/快没了” lowStock=true；说“没货/零库存/缺货” zeroStock=true。',
-        'items 数组字段：goodsName、quantity、weight、price、commission。数量通常是“件/箱/筐/袋”，重量通常是“斤/公斤/kg”，价格是用户明确说的售价；用户没说佣金时 commission 必须是 null，留给后端用库存默认佣金。',
+        'items 数组字段：goodsName、quantity、weight、price、commission。数量通常是“件/箱/筐/袋”，重量通常是“斤/公斤/kg”，价格是用户明确说的售价；用户没说佣金时 commission 必须是 null，留给后端用库存默认佣金。create_supplier_entry 不需要输出明细字段，后端会从原句二次解析；用户没说佣金时默认0。',
         'append_order 如果用户说“再加单/追加/加单”且存在当前未确认草稿，表示把新增商品合并进这个草稿；如果没有草稿但上下文能指向上一单，可使用上下文客户或订单；不能确定目标订单时 needsClarification=true，并给 clarification。',
         '只输出一个 JSON 对象。'
       ].join('\n')
@@ -123,7 +124,7 @@ export function shouldExtractStructuredIntent(input: AiChatInput) {
   if (!content) return false
   if (input.context?.pendingDraft) return true
 
-  return /(拿货|买了|购买|下单|出单|开单|进货|订货|消费|要货|加单|追加|再加|补加|查询|查|看|找|统计|算|输出|列出|显示|汇总|合计|订单|单子|库存|存货|剩余|缺货|零库存|没货|欠款|欠账|欠帐|未收|未付款|没付款|赊账|利润|盈利|赚了|毛利|成本|销售额|营收|超市|配送|送货|商超|客户|\d+(?:\.\d+)?(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG|元|块钱|块))/i.test(content)
+  return /(拿货|买了|购买|下单|出单|开单|进货|订货|消费|要货|加单|追加|再加|补加|查询|查|看|找|统计|算|输出|列出|显示|汇总|合计|订单|单子|库存|存货|剩余|缺货|零库存|没货|欠款|欠账|欠帐|未收|未付款|没付款|赊账|利润|盈利|赚了|毛利|成本|销售额|营收|超市|配送|送货|商超|客户|货主|供货商|供应商|入账|入帐|拿货记录|进货记录|\d+(?:\.\d+)?(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG|元|块钱|块))/i.test(content)
 }
 
 export async function extractStructuredIntent(input: AiChatInput): Promise<AiStructuredIntent | null> {

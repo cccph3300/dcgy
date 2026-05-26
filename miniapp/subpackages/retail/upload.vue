@@ -601,4 +601,34 @@ export default {
   color: #ffffff;
   box-shadow: 0 10rpx 22rpx rgba(217, 48, 37, 0.18);
 }
+
+.retail-upload {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(11, 154, 135, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f2fffb 0%, #e7fbf6 100%);
+}
+
+.soft-card,
+.form-card,
+.preview-card {
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #effdfa 100%);
+}
+
+.section-title,
+.field-label {
+  color: #0d4d45;
+}
+
+.primary,
+.save-button {
+  background: #0b9a87;
+  color: #ffffff;
+}
+
+.soft-button:not(.primary):not(.delete-button) {
+  background: #dff6f1;
+  color: #0b9a87;
+}
 </style>

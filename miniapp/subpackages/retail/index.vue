@@ -277,4 +277,36 @@ export default {
   font-size: 22rpx;
   line-height: 1.45;
 }
+
+.retail-home {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(11, 154, 135, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f2fffb 0%, #e7fbf6 100%);
+}
+
+.eyebrow,
+.section-title {
+  color: #0b9a87;
+}
+
+.title,
+.action-title {
+  color: #0d4d45;
+}
+
+.action-card,
+.note-card {
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #effdfa 100%);
+}
+
+.action-icon {
+  background: #0b9a87;
+}
+
+.action-desc,
+.rule-row {
+  color: #587d78;
+}
 </style>

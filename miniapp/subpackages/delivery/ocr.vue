@@ -520,13 +520,20 @@ export default {
 
 <style scoped>
 .ocr-page {
+  min-height: 100vh;
   padding-bottom: calc(116rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 10% 4%, rgba(77, 110, 216, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6f8ff 0%, #eef3ff 100%);
 }
 
 .shop-card,
 .upload-card,
 .detail-card {
   padding: 18rpx;
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
+  box-shadow: 0 12rpx 26rpx rgba(52, 73, 140, 0.09);
 }
 
 .field-row {
@@ -542,7 +549,7 @@ export default {
 }
 
 .field-label {
-  color: #243640;
+  color: #24305a;
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
@@ -569,7 +576,7 @@ export default {
   height: 260rpx;
   margin-top: 14rpx;
   border-radius: 16rpx;
-  background: #edf2eb;
+  background: #e9eefb;
 }
 
 .ocr-text {
@@ -577,8 +584,8 @@ export default {
   margin-top: 14rpx;
   padding: 14rpx;
   border-radius: 14rpx;
-  background: #f7fbf3;
-  color: #415149;
+  background: #eef3ff;
+  color: #4b5b82;
   font-size: 23rpx;
   line-height: 1.5;
   overflow: auto;
@@ -588,9 +595,9 @@ export default {
 .edit-item {
   margin-bottom: 16rpx;
   padding: 14rpx;
-  border: 2rpx solid #c9dcc9;
+  border: 2rpx solid #d9e1fb;
   border-radius: 16rpx;
-  background: #fffef9;
+  background: #ffffff;
 }
 
 .item-head {
@@ -598,7 +605,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12rpx;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 28rpx;
   font-weight: 900;
 }
@@ -620,9 +627,9 @@ export default {
 
 .stock-panel {
   padding: 12rpx;
-  border: 1rpx solid #dfe8d8;
+  border: 1rpx solid #d9e1fb;
   border-radius: 14rpx;
-  background: #f8fbf4;
+  background: #f6f8ff;
 }
 
 .stock-switch {
@@ -635,14 +642,14 @@ export default {
   height: 58rpx;
   min-height: 58rpx;
   border-radius: 12rpx;
-  background: #edf2eb;
-  color: #718078;
+  background: #e9eefb;
+  color: #66749a;
   font-size: 24rpx;
   font-weight: 900;
 }
 
 .stock-button.active {
-  background: #16945f;
+  background: #4d6ed8;
   color: #ffffff;
 }
 
@@ -664,20 +671,20 @@ export default {
 .goods-cell {
   min-height: 88rpx;
   padding: 12rpx;
-  border: 1rpx solid #dfe8d8;
+  border: 1rpx solid #d9e1fb;
   border-radius: 12rpx;
-  background: #fffef9;
+  background: #ffffff;
 }
 
 .goods-cell.active {
-  border-color: #16945f;
-  background: #e8f6ed;
+  border-color: #4d6ed8;
+  background: #eef3ff;
 }
 
 .goods-name {
   display: block;
   overflow: hidden;
-  color: #17362f;
+  color: #1f2f63;
   font-size: 24rpx;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -687,7 +694,7 @@ export default {
 .muted,
 .stock-tip,
 .stock-empty {
-  color: #718078;
+  color: #697597;
   font-size: 22rpx;
 }
 
@@ -708,7 +715,7 @@ export default {
 
 .subtotal {
   margin-top: 12rpx;
-  color: #16945f;
+  color: #4d6ed8;
   font-size: 28rpx;
   font-weight: 900;
   text-align: right;
@@ -716,7 +723,7 @@ export default {
 
 .empty {
   padding: 40rpx 0;
-  color: #718078;
+  color: #697597;
   text-align: center;
 }
 
@@ -732,10 +739,22 @@ export default {
   align-items: center;
   min-height: 90rpx;
   padding: 10rpx 18rpx;
-  border-top: 1rpx solid #cfe6d5;
-  background: #ffffff;
-  box-shadow: 0 -8rpx 22rpx rgba(25, 55, 44, 0.1);
+  border-top: 1rpx solid #cdd8fb;
+  background: #f8faff;
+  box-shadow: 0 -8rpx 22rpx rgba(52, 73, 140, 0.12);
+  color: #1f2f63;
   font-size: 32rpx;
   font-weight: 900;
+}
+
+.upload-head .primary,
+.total-bar .primary {
+  background: #4d6ed8;
+  color: #ffffff;
+}
+
+.total-bar .soft-button:not(.primary) {
+  background: #e9eefb;
+  color: #24305a;
 }
 </style>

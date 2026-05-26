@@ -419,4 +419,41 @@ export default {
 .error {
   color: #d64b3f;
 }
+
+.retail-records {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(11, 154, 135, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f2fffb 0%, #e7fbf6 100%);
+}
+
+.soft-card,
+.record-card,
+.filter-card,
+.summary-card {
+  border-color: #bde5df;
+  background: linear-gradient(145deg, #ffffff 0%, #effdfa 100%);
+}
+
+.section-title,
+.record-name,
+.pager {
+  color: #0d4d45;
+}
+
+.amount,
+.profit,
+.status.paid,
+.pager-button {
+  color: #0b9a87;
+}
+
+.status.paid,
+.pager-button {
+  background: #dff6f1;
+}
+
+.pay-button {
+  background: #0b9a87;
+}
 </style>

@@ -21,6 +21,7 @@ model StaffUser {
   retailProducts    RetailProduct[]
   sessions          StaffSession[]
   supermarketOrders SupermarketOrder[]
+  supplierEntries    SupplierEntry[]
 
   @@map("staff_users")
 }
@@ -52,6 +53,7 @@ model Goods {
   items             OrderItem[]
   retailProducts    RetailProduct[]
   supermarketItems  SupermarketOrderItem[]
+  supplierEntries   SupplierEntry[]
 
   @@index([name])
   @@map("goods")
@@ -66,6 +68,52 @@ model Customer {
   orders         Order[]
 
   @@map("customers")
+}
+
+model Supplier {
+  id             Int             @id @default(autoincrement())
+  name           String          @unique @db.VarChar(80)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  partialPayment Decimal         @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
+  totalDebt      Decimal         @default(0.00) @map("total_debt") @db.Decimal(10, 2)
+  entries        SupplierEntry[]
+
+  @@map("suppliers")
+}
+
+model SupplierEntry {
+  id              Int                    @id @default(autoincrement())
+  entryNo         String                 @unique @map("entry_no") @db.VarChar(24)
+  supplierId      Int                    @map("supplier_id")
+  supplierName    String                 @map("supplier_name") @db.VarChar(80)
+  staffId         Int                    @map("staff_id")
+  staffName       String                 @map("staff_name") @db.VarChar(40)
+  goodsId         Int?                   @map("goods_id")
+  goodsName       String                 @map("goods_name") @db.VarChar(50)
+  unitType        UnitType               @map("unit_type")
+  quantity        Decimal                @db.Decimal(10, 2)
+  weight          Decimal?               @db.Decimal(10, 2)
+  totalAmount     Decimal                @map("total_amount") @db.Decimal(10, 2)
+  totalCommission Decimal                @default(0.00) @map("total_commission") @db.Decimal(10, 2)
+  costPrice       Decimal                @map("cost_price") @db.Decimal(10, 2)
+  commission      Decimal                @default(0.00) @db.Decimal(10, 2)
+  salePrice       Decimal                @map("sale_price") @db.Decimal(10, 2)
+  stockMode       SupplierEntryStockMode @default(record_only) @map("stock_mode")
+  status          SupplierEntryStatus    @default(unpaid)
+  paidAt          DateTime?              @map("paid_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  supplier        Supplier               @relation(fields: [supplierId], references: [id])
+  staff           StaffUser              @relation(fields: [staffId], references: [id])
+  goods           Goods?                 @relation(fields: [goodsId], references: [id])
+
+  @@index([createdAt])
+  @@index([supplierId])
+  @@index([supplierName])
+  @@index([status])
+  @@index([goodsId])
+  @@index([staffId], map: "supplier_entries_staff_id_fkey")
+  @@map("supplier_entries")
 }
 
 model Order {
@@ -318,4 +366,14 @@ enum RetailCategory {
 enum RetailOrderStatus {
   unpaid
   paid
+}
+
+enum SupplierEntryStatus {
+  unpaid
+  paid
+}
+
+enum SupplierEntryStockMode {
+  record_only
+  auto_stocked
 }

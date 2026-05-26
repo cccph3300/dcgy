@@ -361,13 +361,20 @@ export default {
 
 <style scoped>
 .delivery-create {
+  min-height: 100vh;
   padding-bottom: calc(116rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 10% 4%, rgba(77, 110, 216, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6f8ff 0%, #eef3ff 100%);
 }
 
 .shop-card,
 .add-card,
 .detail-card {
   padding: 18rpx;
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
+  box-shadow: 0 12rpx 26rpx rgba(52, 73, 140, 0.09);
 }
 
 .field-row {
@@ -383,7 +390,7 @@ export default {
 }
 
 .field-label {
-  color: #243640;
+  color: #24305a;
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
@@ -400,14 +407,14 @@ export default {
   height: 64rpx;
   min-height: 64rpx;
   border-radius: 14rpx;
-  background: #edf2eb;
-  color: #718078;
+  background: #e9eefb;
+  color: #66749a;
   font-size: 26rpx;
   font-weight: 900;
 }
 
 .tab-button.active {
-  background: #16945f;
+  background: #4d6ed8;
   color: #ffffff;
 }
 
@@ -429,21 +436,21 @@ export default {
 .goods-cell {
   min-height: 104rpx;
   padding: 14rpx;
-  border: 1rpx solid #dfe8d8;
+  border: 1rpx solid #d9e1fb;
   border-radius: 14rpx;
-  background: #fffef9;
+  background: #ffffff;
 }
 
 .goods-cell.active {
-  border-color: #16945f;
-  background: #e8f6ed;
+  border-color: #4d6ed8;
+  background: #eef3ff;
 }
 
 .goods-name,
 .item-name {
   display: block;
   overflow: hidden;
-  color: #17362f;
+  color: #1f2f63;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -473,7 +480,7 @@ export default {
   align-items: center;
   min-height: 74rpx;
   padding: 12rpx 0;
-  border-bottom: 1rpx solid #eef2ee;
+  border-bottom: 1rpx solid #e7ecfa;
 }
 
 .item-main {
@@ -484,7 +491,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 10rpx;
-  color: #16945f;
+  color: #4d6ed8;
   font-weight: 900;
 }
 
@@ -500,7 +507,7 @@ export default {
 
 .empty {
   padding: 30rpx 0;
-  color: #718078;
+  color: #697597;
   text-align: center;
 }
 
@@ -516,14 +523,26 @@ export default {
   align-items: center;
   min-height: 90rpx;
   padding: 10rpx 18rpx;
-  border-top: 1rpx solid #cfe6d5;
-  background: #ffffff;
-  box-shadow: 0 -8rpx 22rpx rgba(25, 55, 44, 0.1);
+  border-top: 1rpx solid #cdd8fb;
+  background: #f8faff;
+  box-shadow: 0 -8rpx 22rpx rgba(52, 73, 140, 0.12);
+  color: #1f2f63;
   font-size: 32rpx;
   font-weight: 900;
 }
 
 .total-bar.editing {
   grid-template-columns: minmax(0, 1fr) 176rpx;
+}
+
+.add-button,
+.total-bar .primary {
+  background: #4d6ed8;
+  color: #ffffff;
+}
+
+.total-bar .soft-button:not(.primary) {
+  background: #e9eefb;
+  color: #24305a;
 }
 </style>

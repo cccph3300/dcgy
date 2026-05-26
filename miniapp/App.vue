@@ -20,7 +20,7 @@ export default {
     // #ifdef APP-PLUS
     if (getToken()) {
       setTimeout(() => {
-        uni.switchTab({ url: '/pages/ai/index' })
+        uni.switchTab({ url: '/pages/order/index' })
       }, 0)
     } else {
       setTimeout(() => {

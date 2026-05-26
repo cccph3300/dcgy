@@ -480,4 +480,46 @@ export default {
   color: #718078;
   text-align: center;
 }
+
+.add-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(36, 82, 119, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #f6fbff 0%, #eef7ff 100%);
+}
+
+.soft-card,
+.customer-card,
+.goods-card,
+.detail-card {
+  border-color: #c9dcea;
+  background: linear-gradient(145deg, #ffffff 0%, #f2f8ff 100%);
+}
+
+.section-title,
+.goods-name,
+.detail-text {
+  color: #17364e;
+}
+
+.goods-cell.active {
+  border-color: #245277;
+  background: #e4f0fa;
+}
+
+.detail-price,
+.total-text {
+  color: #245277;
+}
+
+.soft-button:not(.danger),
+.suggest-item:active {
+  background: #e4f0fa;
+  color: #245277;
+}
+
+.primary {
+  background: #245277;
+  color: #ffffff;
+}
 </style>
