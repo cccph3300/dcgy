@@ -96,6 +96,38 @@
         "navigationBarTitleText": "超市配送/文本识别送货单"
       }
     }
+    // #ifdef APP-PLUS
+    ,{
+      "path": "subpackages/other/accounts/create",
+      "style": {
+        "navigationBarTitleText": "其他/入账"
+      }
+    },
+    {
+      "path": "subpackages/other/accounts/suppliers",
+      "style": {
+        "navigationBarTitleText": "其他/货主"
+      }
+    },
+    {
+      "path": "subpackages/other/accounts/records",
+      "style": {
+        "navigationBarTitleText": "其他/入账记录"
+      }
+    },
+    {
+      "path": "subpackages/other/accounts/detail",
+      "style": {
+        "navigationBarTitleText": "其他/入账记录/入账详情"
+      }
+    },
+    {
+      "path": "subpackages/other/accounts/debt",
+      "style": {
+        "navigationBarTitleText": "其他/货主赊账详情"
+      }
+    }
+    // #endif
   ],
   "subPackages": [
     {
@@ -125,6 +157,7 @@
             "navigationBarTitleText": "其他/客户列表"
           }
         },
+        // #ifndef APP-PLUS
         {
           "path": "accounts/create",
           "style": {
@@ -155,6 +188,7 @@
             "navigationBarTitleText": "其他/货主赊账详情"
           }
         },
+        // #endif
         {
           "path": "prints/index",
           "style": {

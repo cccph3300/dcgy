@@ -11,6 +11,10 @@ export default defineEventHandler(async (event) => {
 
   return prisma.goods.update({
     where: { id },
-    data: { enabled: false }
+    data: {
+      // 删除货物时同步清零库存，避免前台仍看到一条被隐藏但库存数未归零的数据。
+      stock: 0,
+      enabled: false
+    }
   })
 })

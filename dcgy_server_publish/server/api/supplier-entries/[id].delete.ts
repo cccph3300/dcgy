@@ -24,14 +24,31 @@ export default defineEventHandler(async (event) => {
       if (!goods) {
         throw createError({ statusCode: 400, statusMessage: '关联库存不存在，不能自动回滚' })
       }
-      if (Number(goods.stock) < Number(entry.quantity)) {
+      const rollbackGoods = goods.enabled
+        ? goods
+        : await tx.goods.findFirst({
+            where: {
+              enabled: true,
+              name: entry.goodsName,
+              unitType: entry.unitType,
+              stock: { gte: entry.quantity }
+            },
+            orderBy: { id: 'desc' }
+          })
+      if (!rollbackGoods) {
         throw createError({
           statusCode: 400,
-          statusMessage: `${entry.goodsName}库存仅剩${formatDecimal(goods.stock)}件，不能回滚${formatDecimal(entry.quantity)}件`
+          statusMessage: `${entry.goodsName}关联库存已停用，未找到可回滚的启用库存`
+        })
+      }
+      if (Number(rollbackGoods.stock) < Number(entry.quantity)) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: `${entry.goodsName}库存仅剩${formatDecimal(rollbackGoods.stock)}件，不能回滚${formatDecimal(entry.quantity)}件`
         })
       }
       await tx.goods.update({
-        where: { id: entry.goodsId },
+        where: { id: rollbackGoods.id },
         data: { stock: { decrement: entry.quantity } }
       })
     }

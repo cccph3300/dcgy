@@ -8,6 +8,7 @@ import {
   recalculateSupplierDebt,
   upsertSupplierStockGoods
 } from '../../utils/supplier-entries'
+import { parseChinaDateTime } from '../../utils/date-query'
 
 export default defineEventHandler(async (event) => {
   const staff = await requireStaff(event)
@@ -41,7 +42,8 @@ export default defineEventHandler(async (event) => {
         costPrice: input.costPrice,
         commission: input.commission,
         salePrice: input.salePrice,
-        stockMode: input.stockMode
+        stockMode: input.stockMode,
+        ...(body?.createdDate ? { createdAt: parseChinaDateTime(body.createdDate, body.createdTime || '00:00') } : {})
       }
     })
 

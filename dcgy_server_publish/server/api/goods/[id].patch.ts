@@ -40,6 +40,11 @@ export default defineEventHandler(async (event) => {
           arrivedAt: new Date()
         }
       })
+      // 改价后合并到已有库存时，入账记录也要指向新的库存行，否则后续删除入账会扣到已停用的旧库存。
+      await tx.supplierEntry.updateMany({
+        where: { goodsId: id },
+        data: { goodsId: sameGoods.id }
+      })
       return tx.goods.update({
         where: { id },
         data: { enabled: false }

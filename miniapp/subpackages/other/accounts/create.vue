@@ -21,13 +21,53 @@
           {{ supplier.name }}
         </view>
       </scroll-view>
+
+      <view class="field-row full inline-top">
+        <text class="field-label">时间</text>
+        <picker :value="timeModeIndex" :range="timeModeOptions" range-key="label" @change="changeTimeMode">
+          <view class="input picker-input">{{ timeModeOptions[timeModeIndex].label }}</view>
+        </picker>
+      </view>
+
+      <view v-if="form.timeMode === 'custom'" class="time-grid">
+        <view class="field-row">
+          <text class="field-label">日期</text>
+          <picker mode="date" :value="form.createdDate" @change="changeCreatedDate">
+            <view class="input picker-input">{{ form.createdDate || '选择日期' }}</view>
+          </picker>
+        </view>
+        <view class="field-row">
+          <text class="field-label">时间</text>
+          <picker mode="time" :value="form.createdTime" @change="changeCreatedTime">
+            <view class="input picker-input">{{ form.createdTime || '选择时间' }}</view>
+          </picker>
+        </view>
+      </view>
     </view>
 
     <view class="soft-card form-card">
       <view class="section-title">入账</view>
-      <view class="form-grid">
-        <view class="field-row full-span">
-          <text class="field-label">品名</text>
+
+      <view class="mode-switch">
+        <view
+          class="mode-item"
+          :class="{ active: form.calcMode === 'auto_amount' }"
+          @click="setCalcMode('auto_amount')"
+        >
+          总金额去计算成本
+        </view>
+        <view
+          class="mode-item"
+          :class="{ active: form.calcMode === 'direct_cost' }"
+          @click="setCalcMode('direct_cost')"
+        >
+          直接写成本
+        </view>
+      </view>
+
+      <view class="form-list">
+        <view class="field-block">
+          <text class="field-label block">品名</text>
           <input
             v-model.trim="form.goodsName"
             class="input"
@@ -46,22 +86,55 @@
             </view>
           </scroll-view>
         </view>
-        <picker :value="unitIndex" :range="unitOptions" range-key="label" @change="changeUnit">
-          <view class="input picker-input">{{ unitOptions[unitIndex].label }}</view>
-        </picker>
-        <picker :value="stockIndex" :range="stockOptions" range-key="label" @change="changeStockMode">
-          <view class="input picker-input">{{ stockOptions[stockIndex].label }}</view>
-        </picker>
-        <input v-model="form.quantity" class="input" type="digit" placeholder="数量/件" />
-        <input v-if="form.unitType === 'weight'" v-model="form.weight" class="input" type="digit" placeholder="总重量/斤" />
-        <input v-model="form.totalAmount" class="input" type="digit" placeholder="总金额" />
-        <input v-model="form.totalCommission" class="input" type="digit" placeholder="总佣金 可空" />
-        <input v-model="form.salePrice" class="input" type="digit" placeholder="售卖价" />
+
+        <view class="field-block">
+          <text class="field-label block">计价方式</text>
+          <picker :value="unitIndex" :range="unitOptions" range-key="label" @change="changeUnit">
+            <view class="input picker-input">{{ unitOptions[unitIndex].label }}</view>
+          </picker>
+        </view>
+
+        <view class="field-block">
+          <text class="field-label block">入库状态</text>
+          <picker :value="stockIndex" :range="stockOptions" range-key="label" @change="changeStockMode">
+            <view class="input picker-input">{{ stockOptions[stockIndex].label }}</view>
+          </picker>
+        </view>
+
+        <view class="field-block">
+          <text class="field-label block">数量</text>
+          <input v-model="form.quantity" class="input" type="digit" placeholder="填写数量/件" />
+        </view>
+
+        <view v-if="form.unitType === 'weight'" class="field-block">
+          <text class="field-label block">重量</text>
+          <input v-model="form.weight" class="input" type="digit" placeholder="填写总重量/斤" />
+        </view>
+
+        <view class="field-block" v-if="form.calcMode === 'auto_amount'">
+          <text class="field-label block">总金额</text>
+          <input v-model="form.totalAmount" class="input" type="digit" placeholder="填写总金额" />
+        </view>
+
+        <view class="field-block" v-else>
+          <text class="field-label block">成本</text>
+          <input v-model="form.costInput" class="input" type="digit" :placeholder="form.unitType === 'weight' ? '填写每斤成本' : '填写每件成本'" />
+        </view>
+
+        <view class="field-block">
+          <text class="field-label block">佣金/每件</text>
+          <input v-model="form.commissionInput" class="input" type="digit" placeholder="可空，填写每件佣金" />
+        </view>
+
+        <view class="field-block">
+          <text class="field-label block">售价</text>
+          <input v-model="form.salePrice" class="input" type="digit" placeholder="填写售价" />
+        </view>
       </view>
 
       <view class="calc-card">
         <view>
-          <text>自动成本</text>
+          <text>{{ form.calcMode === 'auto_amount' ? '自动成本' : '成本预览' }}</text>
           <view>¥{{ money(costPrice) }}{{ form.unitType === 'weight' ? '/斤' : '/件' }}</view>
         </view>
         <view>
@@ -72,7 +145,7 @@
     </view>
 
     <view class="total-bar">
-      <text>合计 ¥{{ money(Number(form.totalAmount || 0)) }}</text>
+      <text>合计 ¥{{ money(summaryAmount) }}</text>
       <button class="soft-button primary" :disabled="submitting" @click="submitEntry">{{ submitting ? '保存中' : '保存入账' }}</button>
     </view>
   </view>
@@ -82,15 +155,35 @@
 import { request, requireLogin } from '../../../utils/request'
 import { money } from '../../../utils/format'
 
+const todayText = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const timeText = () => {
+  const now = new Date()
+  const hour = String(now.getHours()).padStart(2, '0')
+  const minute = String(now.getMinutes()).padStart(2, '0')
+  return `${hour}:${minute}`
+}
+
 const emptyForm = () => ({
   goodsName: '',
   unitType: 'weight',
   stockMode: 'auto_stocked',
+  calcMode: 'direct_cost',
   quantity: '',
   weight: '',
   totalAmount: '',
-  totalCommission: '',
-  salePrice: ''
+  costInput: '',
+  commissionInput: '',
+  salePrice: '',
+  timeMode: 'now',
+  createdDate: todayText(),
+  createdTime: timeText()
 })
 
 export default {
@@ -111,6 +204,10 @@ export default {
       stockOptions: [
         { label: '未入库：自动入库+记录', value: 'auto_stocked' },
         { label: '已入库：只记录', value: 'record_only' }
+      ],
+      timeModeOptions: [
+        { label: '现在', value: 'now' },
+        { label: '选择时间', value: 'custom' }
       ]
     }
   },
@@ -121,22 +218,37 @@ export default {
     stockIndex() {
       return this.form.stockMode === 'record_only' ? 1 : 0
     },
+    timeModeIndex() {
+      return this.form.timeMode === 'custom' ? 1 : 0
+    },
+    quantityValue() {
+      return Number(this.form.quantity || 0)
+    },
+    weightValue() {
+      return Number(this.form.weight || 0)
+    },
     commission() {
-      const quantity = Number(this.form.quantity || 0)
-      const totalCommission = Number(this.form.totalCommission || 0)
-      if (quantity <= 0 || totalCommission <= 0) return 0
-      return Number((totalCommission / quantity).toFixed(2))
+      const commission = Number(this.form.commissionInput || 0)
+      return commission > 0 ? Number(commission.toFixed(2)) : 0
+    },
+    billingAmount() {
+      return this.form.unitType === 'weight' ? this.weightValue : this.quantityValue
+    },
+    totalCommissionValue() {
+      return Number((this.commission * this.quantityValue).toFixed(2))
+    },
+    directCostTotal() {
+      return Number((Number(this.form.costInput || 0) * this.billingAmount).toFixed(2))
     },
     costPrice() {
-      const totalAmount = Number(this.form.totalAmount || 0)
-      const totalCommission = Number(this.form.totalCommission || 0)
-      const costTotal = Math.max(totalAmount - totalCommission, 0)
-      if (this.form.unitType === 'weight') {
-        const weight = Number(this.form.weight || 0)
-        return weight > 0 ? Number((costTotal / weight).toFixed(2)) : 0
-      }
-      const quantity = Number(this.form.quantity || 0)
-      return quantity > 0 ? Number((costTotal / quantity).toFixed(2)) : 0
+      const baseCost = this.form.calcMode === 'auto_amount'
+        ? Math.max(Number(this.form.totalAmount || 0) - this.totalCommissionValue, 0)
+        : this.directCostTotal
+      return this.billingAmount > 0 ? Number((baseCost / this.billingAmount).toFixed(2)) : 0
+    },
+    summaryAmount() {
+      if (this.form.calcMode === 'auto_amount') return Number(this.form.totalAmount || 0)
+      return Number((this.directCostTotal + this.totalCommissionValue).toFixed(2))
     }
   },
   onShow() {
@@ -148,6 +260,27 @@ export default {
   },
   methods: {
     money,
+    setCalcMode(mode) {
+      this.form.calcMode = mode
+      if (mode === 'direct_cost') {
+        this.form.totalAmount = ''
+      } else {
+        this.form.costInput = ''
+      }
+    },
+    changeTimeMode(event) {
+      this.form.timeMode = this.timeModeOptions[Number(event.detail.value)].value
+      if (this.form.timeMode === 'now') {
+        this.form.createdDate = todayText()
+        this.form.createdTime = timeText()
+      }
+    },
+    changeCreatedDate(event) {
+      this.form.createdDate = event.detail.value
+    },
+    changeCreatedTime(event) {
+      this.form.createdTime = event.detail.value
+    },
     onSupplierInput() {
       this.selectedSupplierId = null
       if (this.supplierTimer) clearTimeout(this.supplierTimer)
@@ -210,26 +343,42 @@ export default {
         uni.showToast({ title: '请填写总重量', icon: 'none' })
         return false
       }
-      if (Number(this.form.totalAmount || 0) <= 0) {
-        uni.showToast({ title: '请填写总金额', icon: 'none' })
+      if (this.form.calcMode === 'auto_amount') {
+        if (Number(this.form.totalAmount || 0) <= 0) {
+          uni.showToast({ title: '请填写总金额', icon: 'none' })
+          return false
+        }
+      } else if (Number(this.form.costInput || 0) <= 0) {
+        uni.showToast({ title: '请填写成本', icon: 'none' })
         return false
       }
-      if (Number(this.form.totalCommission || 0) > Number(this.form.totalAmount || 0)) {
-        uni.showToast({ title: '总佣金不能大于总金额', icon: 'none' })
+      if (Number(this.form.commissionInput || 0) < 0) {
+        uni.showToast({ title: '佣金不能小于0', icon: 'none' })
+        return false
+      }
+      if (this.form.calcMode === 'auto_amount' && this.totalCommissionValue > Number(this.form.totalAmount || 0)) {
+        uni.showToast({ title: '佣金不能大于总金额', icon: 'none' })
         return false
       }
       if (Number(this.form.salePrice || 0) <= 0) {
-        uni.showToast({ title: '请填写售卖价', icon: 'none' })
+        uni.showToast({ title: '请填写售价', icon: 'none' })
         return false
       }
       return true
     },
     submitEntry() {
       if (!this.validateForm()) return
+      const modeText = this.form.calcMode === 'auto_amount' ? '总金额去计算成本' : '直接写成本'
       const stockText = this.form.stockMode === 'auto_stocked' ? '未入库，将自动入库' : '已入库，只记录'
+      const timeText = this.form.timeMode === 'now'
+        ? '入账时间：现在'
+        : `入账时间：${this.form.createdDate} ${this.form.createdTime}`
+      const amountText = this.form.calcMode === 'auto_amount'
+        ? `总金额：¥${money(this.form.totalAmount)}`
+        : `成本：¥${money(this.form.costInput)}${this.form.unitType === 'weight' ? '/斤' : '/件'}`
       uni.showModal({
         title: '确认入账',
-        content: `货主：${this.supplierName.trim()}\n品名：${this.form.goodsName.trim()}\n总金额：¥${money(this.form.totalAmount)}\n${stockText}`,
+        content: `货主：${this.supplierName.trim()}\n${timeText}\n品名：${this.form.goodsName.trim()}\n计价方式：${this.unitOptions[this.unitIndex].label}\n入库状态：${stockText}\n数量：${this.form.quantity}\n${this.form.unitType === 'weight' ? `重量：${this.form.weight}斤\n` : ''}${amountText}\n佣金/每件：¥${money(this.commission)}\n售价：¥${money(this.form.salePrice)}\n模式：${modeText}`,
         confirmText: '入账',
         success: (res) => {
           if (res.confirm) this.createEntry()
@@ -240,20 +389,27 @@ export default {
       if (this.submitting) return
       this.submitting = true
       try {
+        const payload = {
+          supplierName: this.supplierName.trim(),
+          goodsName: this.form.goodsName.trim(),
+          unitType: this.form.unitType,
+          stockMode: this.form.stockMode,
+          quantity: Number(this.form.quantity || 0),
+          weight: this.form.unitType === 'weight' ? Number(this.form.weight || 0) : null,
+          totalAmount: this.form.calcMode === 'auto_amount'
+            ? Number(this.form.totalAmount || 0)
+            : this.summaryAmount,
+          totalCommission: this.totalCommissionValue,
+          salePrice: Number(this.form.salePrice || 0)
+        }
+        if (this.form.timeMode === 'custom') {
+          payload.createdDate = this.form.createdDate
+          payload.createdTime = this.form.createdTime
+        }
         const result = await request({
           url: '/api/supplier-entries',
           method: 'POST',
-          data: {
-            supplierName: this.supplierName.trim(),
-            goodsName: this.form.goodsName.trim(),
-            unitType: this.form.unitType,
-            stockMode: this.form.stockMode,
-            quantity: Number(this.form.quantity || 0),
-            weight: this.form.unitType === 'weight' ? Number(this.form.weight || 0) : null,
-            totalAmount: Number(this.form.totalAmount || 0),
-            totalCommission: Number(this.form.totalCommission || 0),
-            salePrice: Number(this.form.salePrice || 0)
-          }
+          data: payload
         })
         uni.showToast({ title: '已入账', icon: 'success' })
         this.form = emptyForm()
@@ -274,7 +430,18 @@ export default {
 
 <style scoped>
 .account-create {
+  min-height: 100vh;
   padding-bottom: calc(116rpx + var(--window-bottom, 0px) + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 12% 4%, rgba(217, 120, 23, 0.14), transparent 190rpx),
+    linear-gradient(180deg, #fffaf0 0%, #fff3dc 100%);
+}
+
+.supplier-card,
+.form-card {
+  border-color: #efd7aa;
+  background: linear-gradient(145deg, #ffffff 0%, #fff8e8 100%);
+  box-shadow: 0 12rpx 26rpx rgba(132, 77, 12, 0.08);
 }
 
 .supplier-card {
@@ -294,22 +461,87 @@ export default {
   align-items: center;
 }
 
-.field-row.full-span {
-  grid-column: 1 / -1;
+.field-row.full {
+  position: relative;
+}
+
+.field-row.inline-top {
+  margin-top: 14rpx;
+  align-items: start;
+}
+
+.field-block {
   position: relative;
 }
 
 .field-label {
-  color: #243640;
+  color: #6f3d05;
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
 }
 
-.form-grid {
+.field-label.block {
+  display: block;
+  margin-bottom: 10rpx;
+  text-align: left;
+}
+
+.section-title {
+  margin-bottom: 14rpx;
+  color: #6f3d05;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.mode-switch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12rpx;
+  margin-bottom: 14rpx;
+}
+
+.mode-item {
+  min-height: 66rpx;
+  padding: 16rpx;
+  border: 1rpx solid #efd7aa;
+  border-radius: 14rpx;
+  background: #fffaf0;
+  color: #9a6b2f;
+  font-size: 24rpx;
+  font-weight: 900;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.mode-item.active {
+  background: #d97817;
+  color: #ffffff;
+  border-color: #d97817;
+}
+
+.form-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.input,
+.picker-input {
+  height: 68rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid #efd7aa;
+  border-radius: 14rpx;
+  background: #fffaf0;
+  color: #17362f;
+  font-size: 26rpx;
 }
 
 .picker-input {
@@ -319,9 +551,9 @@ export default {
 
 .suggest-float {
   position: absolute;
-  left: 106rpx;
-  right: 18rpx;
-  top: 92rpx;
+  left: 0;
+  right: 0;
+  top: 88rpx;
   z-index: 99;
   max-height: 188rpx;
   border: 1rpx solid #dce5dc;
@@ -331,6 +563,10 @@ export default {
   overflow: hidden;
 }
 
+.goods-suggest-float {
+  top: 96rpx;
+}
+
 .suggest-item {
   min-height: 56rpx;
   padding: 14rpx 18rpx;
@@ -338,10 +574,8 @@ export default {
   font-weight: 800;
 }
 
-.goods-suggest-float {
-  left: 88rpx;
-  right: 0;
-  top: 68rpx;
+.suggest-item:active {
+  background: #fff1d1;
 }
 
 .calc-card {
@@ -355,11 +589,11 @@ export default {
   min-height: 96rpx;
   padding: 16rpx;
   border-radius: 16rpx;
-  background: #e8f6ed;
+  background: #fff1d1;
 }
 
 .calc-card text {
-  color: #718078;
+  color: #9a6b2f;
   font-size: 22rpx;
   font-weight: 900;
 }
@@ -383,46 +617,12 @@ export default {
   align-items: center;
   min-height: 90rpx;
   padding: 10rpx 18rpx;
-  border-top: 1rpx solid #cfe6d5;
-  background: #ffffff;
+  border-top: 1rpx solid #efd7aa;
+  background: #fffaf0;
   box-shadow: 0 -8rpx 22rpx rgba(25, 55, 44, 0.1);
-  color: #17362f;
+  color: #6f3d05;
   font-size: 32rpx;
   font-weight: 900;
-}
-
-.account-create {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 12% 4%, rgba(217, 120, 23, 0.14), transparent 190rpx),
-    linear-gradient(180deg, #fffaf0 0%, #fff3dc 100%);
-}
-
-.supplier-card,
-.form-card {
-  border-color: #efd7aa;
-  background: linear-gradient(145deg, #ffffff 0%, #fff8e8 100%);
-  box-shadow: 0 12rpx 26rpx rgba(132, 77, 12, 0.08);
-}
-
-.field-label,
-.section-title {
-  color: #6f3d05;
-}
-
-.calc-card > view,
-.suggest-item:active {
-  background: #fff1d1;
-}
-
-.calc-card text {
-  color: #9a6b2f;
-}
-
-.total-bar {
-  border-top-color: #efd7aa;
-  background: #fffaf0;
-  color: #6f3d05;
 }
 
 .total-bar .primary {

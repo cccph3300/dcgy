@@ -21,7 +21,25 @@
     <view v-if="editing" class="soft-card edit-panel">
       <view class="section-title">{{ form.id ? '编辑货物' : '货物入库' }}</view>
       <view class="form-grid">
-        <input v-model="form.name" class="input" placeholder="水果名称" />
+        <view class="field-block full-span">
+          <input
+            v-model.trim="form.name"
+            class="input"
+            placeholder="水果名称"
+            @input="onEditNameInput"
+            @focus="searchEditGoods"
+          />
+          <scroll-view v-if="formNameSuggestions.length" class="suggest-float" scroll-y enhanced>
+            <view
+              v-for="goods in formNameSuggestions"
+              :key="goods.id"
+              class="suggest-item"
+              @click="selectFormGoods(goods)"
+            >
+              {{ goods.name }}
+            </view>
+          </scroll-view>
+        </view>
         <picker :value="unitIndex" :range="unitOptions" range-key="label" @change="changeUnit">
           <view class="input picker-input">{{ unitOptions[unitIndex].label }}</view>
         </picker>
@@ -40,7 +58,25 @@
       <view class="section-title">导入货物</view>
       <view class="import-tip">按整批金额自动平均成本和佣金，保存前可再填写售卖价。</view>
       <view class="form-grid">
-        <input v-model.trim="importForm.name" class="input" placeholder="水果名称" />
+        <view class="field-block full-span">
+          <input
+            v-model.trim="importForm.name"
+            class="input"
+            placeholder="水果名称"
+            @input="onImportNameInput"
+            @focus="searchImportGoods"
+          />
+          <scroll-view v-if="importNameSuggestions.length" class="suggest-float" scroll-y enhanced>
+            <view
+              v-for="goods in importNameSuggestions"
+              :key="goods.id"
+              class="suggest-item"
+              @click="selectImportGoods(goods)"
+            >
+              {{ goods.name }}
+            </view>
+          </scroll-view>
+        </view>
         <picker :value="importUnitIndex" :range="unitOptions" range-key="label" @change="changeImportUnit">
           <view class="input picker-input">{{ unitOptions[importUnitIndex].label }}</view>
         </picker>
@@ -130,6 +166,10 @@ export default {
       zeroGoods: [],
       editing: false,
       importing: false,
+      formNameSuggestions: [],
+      importNameSuggestions: [],
+      formSearchTimer: null,
+      importSearchTimer: null,
       form: emptyForm(),
       importForm: emptyImportForm(),
       unitOptions: [
@@ -171,10 +211,66 @@ export default {
   },
   onUnload() {
     if (this.searchTimer) clearTimeout(this.searchTimer)
+    if (this.formSearchTimer) clearTimeout(this.formSearchTimer)
+    if (this.importSearchTimer) clearTimeout(this.importSearchTimer)
   },
   methods: {
     money,
     numberText,
+    clearFormSuggestions() {
+      this.formNameSuggestions = []
+    },
+    clearImportSuggestions() {
+      this.importNameSuggestions = []
+    },
+    onEditNameInput() {
+      if (this.formSearchTimer) clearTimeout(this.formSearchTimer)
+      this.formSearchTimer = setTimeout(() => this.searchEditGoods(), 220)
+    },
+    onImportNameInput() {
+      if (this.importSearchTimer) clearTimeout(this.importSearchTimer)
+      this.importSearchTimer = setTimeout(() => this.searchImportGoods(), 220)
+    },
+    async searchGoodsByKeyword(keyword) {
+      const result = await request({ url: `/api/goods?q=${encodeURIComponent(keyword)}&page=1&pageSize=8` })
+      return Array.isArray(result) ? result : (result?.items || [])
+    },
+    async searchEditGoods() {
+      const keyword = this.form.name.trim()
+      if (!keyword) {
+        this.formNameSuggestions = []
+        return
+      }
+      this.formNameSuggestions = await this.searchGoodsByKeyword(keyword)
+    },
+    async searchImportGoods() {
+      const keyword = this.importForm.name.trim()
+      if (!keyword) {
+        this.importNameSuggestions = []
+        return
+      }
+      this.importNameSuggestions = await this.searchGoodsByKeyword(keyword)
+    },
+    selectFormGoods(goods) {
+      const editingExisting = Boolean(this.form.id)
+      this.form = {
+        id: editingExisting ? goods.id : null,
+        name: goods.name,
+        unitType: goods.unitType,
+        stock: editingExisting ? goods.stock : '',
+        costPrice: goods.costPrice,
+        salePrice: goods.salePrice,
+        defaultCommission: goods.defaultCommission
+      }
+      this.formNameSuggestions = []
+    },
+    selectImportGoods(goods) {
+      this.importForm.name = goods.name
+      this.importForm.unitType = goods.unitType === 'qty' ? 'qty' : 'weight'
+      if (this.importForm.unitType === 'qty') this.importForm.weight = ''
+      if (!this.importForm.salePrice) this.importForm.salePrice = String(goods.salePrice || '')
+      this.importNameSuggestions = []
+    },
     reloadFirstPage() {
       if (this.searchTimer) clearTimeout(this.searchTimer)
       this.searchTimer = setTimeout(() => {
@@ -230,11 +326,15 @@ export default {
       this.form = emptyForm()
       this.editing = true
       this.importing = false
+      this.clearImportSuggestions()
+      this.clearFormSuggestions()
     },
     startImport() {
       this.importForm = emptyImportForm()
       this.importing = true
       this.editing = false
+      this.clearFormSuggestions()
+      this.clearImportSuggestions()
     },
     startEdit(goods) {
       this.form = {
@@ -248,6 +348,7 @@ export default {
       }
       this.editing = true
       this.importing = false
+      this.clearImportSuggestions()
     },
     async saveImportGoods() {
       const name = this.importForm.name.trim()
@@ -292,6 +393,7 @@ export default {
       })
       uni.showToast({ title: '已导入', icon: 'success' })
       this.importing = false
+      this.clearImportSuggestions()
       this.page = 1
       await this.loadGoods()
     },
@@ -314,6 +416,7 @@ export default {
         await request({ url: '/api/goods', method: 'POST', data })
       }
       this.editing = false
+      this.clearFormSuggestions()
       await this.loadGoods()
     },
     deleteGoods(goods) {
@@ -382,6 +485,40 @@ export default {
 .picker-input {
   display: flex;
   align-items: center;
+}
+
+.field-block {
+  position: relative;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.suggest-float {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 76rpx;
+  z-index: 99;
+  max-height: 220rpx;
+  border: 1rpx solid #dce5dc;
+  border-radius: 12rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 28rpx rgba(24, 37, 46, 0.14);
+  overflow: hidden;
+}
+
+.suggest-item {
+  min-height: 56rpx;
+  padding: 14rpx 18rpx;
+  border-bottom: 1rpx solid #eef2ee;
+  color: #17362f;
+  font-weight: 800;
+}
+
+.suggest-item:active {
+  background: #fff1d1;
 }
 
 .form-grid {
