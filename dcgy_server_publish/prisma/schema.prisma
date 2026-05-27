@@ -7,6 +7,18 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+model AiChatMessage {
+  id        Int      @id @default(autoincrement())
+  staffId   Int      @map("staff_id")
+  role      AiChatRole
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  staff     StaffUser @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, id], map: "ai_chat_messages_staff_id_id_idx")
+  @@index([staffId, createdAt], map: "ai_chat_messages_staff_id_created_at_idx")
+  @@map("ai_chat_messages")
+}
 
 model StaffUser {
   id                Int                @id @default(autoincrement())
@@ -22,7 +34,7 @@ model StaffUser {
   sessions          StaffSession[]
   supermarketOrders SupermarketOrder[]
   supplierEntries    SupplierEntry[]
-
+  aiChatMessages AiChatMessage[]
   @@map("staff_users")
 }
 
@@ -324,6 +336,10 @@ model RetailOrderItem {
   @@map("retail_order_items")
 }
 
+enum AiChatRole {
+  user
+  assistant
+}
 enum UnitType {
   weight
   qty
