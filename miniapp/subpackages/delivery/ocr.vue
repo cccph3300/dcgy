@@ -71,7 +71,7 @@
             <input v-model="item.price" class="input" type="digit" />
           </view>
           <view class="field-row">
-            <text class="field-label">佣金</text>
+            <text class="field-label">售佣</text>
             <input v-model="item.commission" class="input" type="digit" />
           </view>
           <view class="field-row">
@@ -179,7 +179,7 @@ export default {
       item.unitType = goods.unitType
       item.price = String(goods.salePrice || goods.costPrice || item.price || 0)
       item.costPrice = String(goods.costPrice || item.costPrice || 0)
-      item.commission = String(goods.defaultCommission || item.commission || 0)
+      item.commission = String(goods.saleCommission || item.commission || 0)
     },
     chooseImage() {
       uni.chooseImage({
@@ -441,8 +441,8 @@ export default {
       const price = Number(item.price || 0)
       const commission = Number(item.commission || 0)
       return weight > 0
-        ? Number((weight * price + commission).toFixed(2))
-        : Number((quantity * price + commission).toFixed(2))
+        ? Number((weight * price + quantity * commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
     },
     validateOrder() {
       if (!this.marketName.trim()) {

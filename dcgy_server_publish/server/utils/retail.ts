@@ -59,6 +59,7 @@ export function mapRetailProduct(product: RetailProductWithGoods) {
     unitType: product.unitType,
     price: formatDecimal(product.price),
     costPrice: formatDecimal(product.costPrice),
+    costCommission: formatDecimal(product.costCommission || 0),
     commission: formatDecimal(product.commission),
     imageUrl: product.imageUrl,
     sortOrder: product.sortOrder,
@@ -154,9 +155,9 @@ export async function buildRetailOrderItems(tx: Tx, rawItems: unknown): Promise<
       }
     }
     const billingAmount = product.unitType === 'weight' ? item.weight : item.quantity
-    const subtotal = roundMoney(billingAmount * Number(product.price) + Number(product.commission))
+    const subtotal = roundMoney(billingAmount * Number(product.price) + item.quantity * Number(product.commission))
     const costAmount = roundMoney(billingAmount * Number(product.costPrice))
-    const profit = roundMoney(subtotal - costAmount - Number(product.commission))
+    const profit = roundMoney(subtotal - costAmount - item.quantity * Number(product.costCommission || 0))
     return {
       product,
       quantity: item.quantity,
@@ -183,7 +184,7 @@ export function summarizeRetailItems(items: BuiltRetailItem[]) {
     totalAmount: roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0)),
     totalCost: roundMoney(items.reduce((sum, item) => sum + item.costAmount, 0)),
     totalProfit: roundMoney(items.reduce((sum, item) => sum + item.profit, 0)),
-    totalCommission: roundMoney(items.reduce((sum, item) => sum + Number(item.product.commission), 0))
+    totalCommission: roundMoney(items.reduce((sum, item) => sum + item.quantity * Number(item.product.commission), 0))
   }
 }
 
@@ -200,6 +201,7 @@ export function mapRetailOrderItemForCreate(item: BuiltRetailItem) {
     weight: item.weight,
     price: product.price,
     costPrice: product.costPrice,
+    costCommission: product.costCommission,
     costAmount: item.costAmount,
     profit: item.profit,
     commission: product.commission,
@@ -237,6 +239,7 @@ export function mapRetailOrder(order: RetailOrderWithItems) {
       weight: item.weight ? formatDecimal(item.weight) : null,
       price: formatDecimal(item.price),
       costPrice: formatDecimal(item.costPrice),
+      costCommission: formatDecimal(item.costCommission || 0),
       costAmount: formatDecimal(item.costAmount),
       profit: formatDecimal(item.profit),
       commission: formatDecimal(item.commission),
@@ -271,6 +274,7 @@ export function parseRetailProductPayload(body: any) {
     unitType,
     price: toMoney(body?.price, '单价'),
     costPrice: toMoney(body?.costPrice || 0, '成本'),
+    costCommission: toMoney(body?.costCommission || body?.defaultCommission || 0, '成本佣金'),
     commission: toMoney(body?.commission, '佣金'),
     imageUrl: String(body?.imageUrl || '').trim() || null,
     sortOrder: Number.isFinite(Number(body?.sortOrder)) ? Number(body.sortOrder) : categorySort(parseRetailCategory(body?.category))

@@ -122,13 +122,18 @@
         </view>
 
         <view class="field-block">
-          <text class="field-label block">佣金/每件</text>
+          <text class="field-label block">成本佣金/件</text>
           <input v-model="form.commissionInput" class="input" type="digit" placeholder="可空，填写每件佣金" />
         </view>
 
         <view class="field-block">
           <text class="field-label block">售价</text>
           <input v-model="form.salePrice" class="input" type="digit" placeholder="填写售价" />
+        </view>
+
+        <view class="field-block">
+          <text class="field-label block">售卖佣金/件</text>
+          <input v-model="form.saleCommission" class="input" type="digit" placeholder="可空，售卖时每件佣金" />
         </view>
       </view>
 
@@ -138,7 +143,7 @@
           <view>¥{{ money(costPrice) }}{{ form.unitType === 'weight' ? '/斤' : '/件' }}</view>
         </view>
         <view>
-          <text>每件佣金</text>
+          <text>成本佣金/件</text>
           <view>¥{{ money(commission) }}</view>
         </view>
       </view>
@@ -181,6 +186,7 @@ const emptyForm = () => ({
   costInput: '',
   commissionInput: '',
   salePrice: '',
+  saleCommission: '',
   timeMode: 'now',
   createdDate: todayText(),
   createdTime: timeText()
@@ -317,6 +323,7 @@ export default {
       this.form.unitType = goods.unitType === 'weight' ? 'weight' : 'qty'
       if (this.form.unitType === 'qty') this.form.weight = ''
       if (!this.form.salePrice) this.form.salePrice = String(goods.salePrice || goods.costPrice || '')
+      if (!this.form.saleCommission) this.form.saleCommission = String(goods.saleCommission || 0)
       this.goodsSuggestions = []
     },
     changeUnit(event) {
@@ -378,7 +385,7 @@ export default {
         : `成本：¥${money(this.form.costInput)}${this.form.unitType === 'weight' ? '/斤' : '/件'}`
       uni.showModal({
         title: '确认入账',
-        content: `货主：${this.supplierName.trim()}\n${timeText}\n品名：${this.form.goodsName.trim()}\n计价方式：${this.unitOptions[this.unitIndex].label}\n入库状态：${stockText}\n数量：${this.form.quantity}\n${this.form.unitType === 'weight' ? `重量：${this.form.weight}斤\n` : ''}${amountText}\n佣金/每件：¥${money(this.commission)}\n售价：¥${money(this.form.salePrice)}\n模式：${modeText}`,
+        content: `货主：${this.supplierName.trim()}\n${timeText}\n品名：${this.form.goodsName.trim()}\n计价方式：${this.unitOptions[this.unitIndex].label}\n入库状态：${stockText}\n数量：${this.form.quantity}\n${this.form.unitType === 'weight' ? `重量：${this.form.weight}斤\n` : ''}${amountText}\n成本佣金/件：¥${money(this.commission)}\n售卖佣金/件：¥${money(this.form.saleCommission || 0)}\n售价：¥${money(this.form.salePrice)}\n模式：${modeText}`,
         confirmText: '入账',
         success: (res) => {
           if (res.confirm) this.createEntry()
@@ -400,6 +407,7 @@ export default {
             ? Number(this.form.totalAmount || 0)
             : this.summaryAmount,
           totalCommission: this.totalCommissionValue,
+          saleCommission: Number(this.form.saleCommission || 0),
           salePrice: Number(this.form.salePrice || 0)
         }
         if (this.form.timeMode === 'custom') {

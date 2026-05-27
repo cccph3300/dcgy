@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     await tx.orderItem.deleteMany({ where: { orderId: id } })
 
     const goodsAmount = Number(items.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2))
-    const commission = Number(items.reduce((sum, item) => sum + item.commission, 0).toFixed(2))
+    const commission = Number(items.reduce((sum, item) => sum + item.quantity * item.commission, 0).toFixed(2))
     const profitAmount = Number(items.reduce((sum, item) => sum + item.profit, 0).toFixed(2))
     const totalAmount = goodsAmount
 

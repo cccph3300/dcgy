@@ -79,7 +79,7 @@
                     <text>件数</text>
                     <text>重量</text>
                     <text>价格</text>
-                    <text>佣金</text>
+                    <text>售卖佣金</text>
                     <text>小计</text>
                   </view>
                   <view v-for="(item, rowIndex) in message.action.items" :key="item.rowKey" class="editable-row" :class="{ expanded: item.goodsSuggestions.length }">
@@ -202,7 +202,7 @@
                   <input v-model="message.action.supplierEntry.totalAmount" class="draft-input" type="digit" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
                 </view>
                 <view class="entry-field">
-                  <text>总佣金</text>
+                  <text>拿货总佣金</text>
                   <input v-model="message.action.supplierEntry.totalCommission" class="draft-input" type="digit" :data-action-id="message.id" @input="updateSupplierEntryDraft" />
                 </view>
                 <view class="entry-field">
@@ -1284,7 +1284,7 @@ export default {
       const commission = Number(item.commission || 0)
       item.subtotal = item.unitType === 'weight' && weight > 0
         ? Number((weight * price + quantity * commission).toFixed(2))
-        : Number((quantity * price + commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
     },
     refreshDraftTotals(action) {
       if (!action || action.kind !== 'create_order') return
@@ -1460,7 +1460,7 @@ export default {
       item.unitType = goods.unitType
       item.goodsSuggestions = []
       if (!item.price) item.price = String(goods.salePrice || goods.costPrice || 0)
-      if (!item.commission) item.commission = String(goods.defaultCommission || 0)
+      if (!item.commission) item.commission = String(goods.saleCommission || 0)
       if (goods.unitType !== 'weight') item.weight = ''
       this.updateDraftRowSubtotal(item)
       this.refreshDraftTotals(action)

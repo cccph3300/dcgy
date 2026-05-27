@@ -10,7 +10,8 @@ export default defineEventHandler(async (event) => {
   const quantity = toQuantity(body?.quantity, '入库数量')
   const costPrice = toMoney(body?.costPrice, '成本价')
   const salePrice = toMoney(body?.salePrice ?? body?.costPrice, '售卖价')
-  const defaultCommission = toMoney(body?.defaultCommission, '佣金')
+  const defaultCommission = toMoney(body?.defaultCommission, '成本佣金')
+  const saleCommission = toMoney(body?.saleCommission, '售卖佣金')
 
   return prisma.goods.update({
     where: { id },
@@ -19,6 +20,7 @@ export default defineEventHandler(async (event) => {
       costPrice,
       salePrice,
       defaultCommission,
+      saleCommission,
       arrivedAt: new Date()
     }
   })

@@ -54,7 +54,11 @@
           <input v-model="form.costPrice" class="input" type="digit" />
         </view>
         <view class="field">
-          <view class="field-label">佣金</view>
+          <view class="field-label">成本佣金</view>
+          <input v-model="form.costCommission" class="input" type="digit" />
+        </view>
+        <view class="field">
+          <view class="field-label">售卖佣金</view>
           <input v-model="form.commission" class="input" type="digit" />
         </view>
         <view class="field">
@@ -111,6 +115,7 @@ export default {
         unitType: 'qty',
         price: '',
         costPrice: '',
+        costCommission: '0',
         commission: '0',
         imageUrl: '',
         sortOrder: '0'
@@ -181,6 +186,7 @@ export default {
         unitType: product.unitType,
         price: String(product.price || ''),
         costPrice: String(product.costPrice || 0),
+        costCommission: String(product.costCommission || 0),
         commission: String(product.commission || 0),
         imageUrl: product.imageUrl || '',
         sortOrder: String(product.sortOrder || 0)
@@ -212,7 +218,8 @@ export default {
       this.form.unitType = goods.unitType
       this.form.price = String(goods.salePrice || goods.costPrice || 0)
       this.form.costPrice = String(goods.costPrice || 0)
-      this.form.commission = String(goods.defaultCommission || 0)
+      this.form.costCommission = String(goods.defaultCommission || 0)
+      this.form.commission = String(goods.saleCommission || 0)
     },
     selectCategory(event) {
       this.form.category = this.categories[Number(event.detail.value)].value
@@ -456,6 +463,7 @@ export default {
         unitType: 'qty',
         price: '',
         costPrice: '',
+        costCommission: '0',
         commission: '0',
         imageUrl: '',
         sortOrder: '0'

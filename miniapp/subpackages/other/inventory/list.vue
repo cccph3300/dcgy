@@ -22,6 +22,7 @@
       <view class="section-title">{{ form.id ? '编辑货物' : '货物入库' }}</view>
       <view class="form-grid">
         <view class="field-block full-span">
+          <text class="field-label block">水果名称</text>
           <input
             v-model.trim="form.name"
             class="input"
@@ -40,13 +41,32 @@
             </view>
           </scroll-view>
         </view>
-        <picker :value="unitIndex" :range="unitOptions" range-key="label" @change="changeUnit">
-          <view class="input picker-input">{{ unitOptions[unitIndex].label }}</view>
-        </picker>
-        <input v-model="form.stock" class="input" type="digit" placeholder="数量/件" />
-        <input v-model="form.costPrice" class="input" type="digit" placeholder="成本价" />
-        <input v-model="form.salePrice" class="input" type="digit" placeholder="售卖价" />
-        <input v-model="form.defaultCommission" class="input" type="digit" placeholder="佣金 可不填" />
+        <view class="field-block">
+          <text class="field-label block">计价方式</text>
+          <picker :value="unitIndex" :range="unitOptions" range-key="label" @change="changeUnit">
+            <view class="input picker-input">{{ unitOptions[unitIndex].label }}</view>
+          </picker>
+        </view>
+        <view class="field-block">
+          <text class="field-label block">库存数量/件</text>
+          <input v-model="form.stock" class="input" type="digit" placeholder="填写件数" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">成本价</text>
+          <input v-model="form.costPrice" class="input" type="digit" :placeholder="form.unitType === 'weight' ? '每斤成本' : '每件成本'" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">售卖价</text>
+          <input v-model="form.salePrice" class="input" type="digit" :placeholder="form.unitType === 'weight' ? '每斤售价' : '每件售价'" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">成本佣金/件</text>
+          <input v-model="form.defaultCommission" class="input" type="digit" placeholder="拿货时每件佣金" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">售卖佣金/件</text>
+          <input v-model="form.saleCommission" class="input" type="digit" placeholder="售卖时每件佣金" />
+        </view>
       </view>
       <view class="button-row">
         <button class="soft-button" @click="editing = false">取消</button>
@@ -59,6 +79,7 @@
       <view class="import-tip">按整批金额自动平均成本和佣金，保存前可再填写售卖价。</view>
       <view class="form-grid">
         <view class="field-block full-span">
+          <text class="field-label block">水果名称</text>
           <input
             v-model.trim="importForm.name"
             class="input"
@@ -77,14 +98,36 @@
             </view>
           </scroll-view>
         </view>
-        <picker :value="importUnitIndex" :range="unitOptions" range-key="label" @change="changeImportUnit">
-          <view class="input picker-input">{{ unitOptions[importUnitIndex].label }}</view>
-        </picker>
-        <input v-model="importForm.pieces" class="input" type="digit" placeholder="件数" />
-        <input v-if="importForm.unitType === 'weight'" v-model="importForm.weight" class="input" type="digit" placeholder="总重量/斤" />
-        <input v-model="importForm.totalAmount" class="input" type="digit" placeholder="总金额" />
-        <input v-model="importForm.totalCommission" class="input" type="digit" placeholder="总佣金 可空" />
-        <input v-model="importForm.salePrice" class="input" type="digit" placeholder="售卖价" />
+        <view class="field-block">
+          <text class="field-label block">计价方式</text>
+          <picker :value="importUnitIndex" :range="unitOptions" range-key="label" @change="changeImportUnit">
+            <view class="input picker-input">{{ unitOptions[importUnitIndex].label }}</view>
+          </picker>
+        </view>
+        <view class="field-block">
+          <text class="field-label block">件数</text>
+          <input v-model="importForm.pieces" class="input" type="digit" placeholder="填写件数" />
+        </view>
+        <view v-if="importForm.unitType === 'weight'" class="field-block">
+          <text class="field-label block">总重量/斤</text>
+          <input v-model="importForm.weight" class="input" type="digit" placeholder="填写总重量" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">拿货总金额</text>
+          <input v-model="importForm.totalAmount" class="input" type="digit" placeholder="整批总金额" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">拿货总佣金</text>
+          <input v-model="importForm.totalCommission" class="input" type="digit" placeholder="可空" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">售卖价</text>
+          <input v-model="importForm.salePrice" class="input" type="digit" :placeholder="importForm.unitType === 'weight' ? '每斤售价' : '每件售价'" />
+        </view>
+        <view class="field-block">
+          <text class="field-label block">售卖佣金/件</text>
+          <input v-model="importForm.saleCommission" class="input" type="digit" placeholder="可空" />
+        </view>
       </view>
       <view class="calc-card">
         <view>
@@ -92,7 +135,7 @@
           <view>¥{{ money(importCostPrice) }}{{ importForm.unitType === 'weight' ? '/斤' : '/件' }}</view>
         </view>
         <view>
-          <text>每件佣金</text>
+          <text>成本佣金/件</text>
           <view>¥{{ money(importCommission) }}</view>
         </view>
       </view>
@@ -111,7 +154,7 @@
         <view v-for="goods in filteredGoods" :key="goods.id" class="inventory-row">
           <view class="inventory-main">
             <text class="goods-name">{{ goods.name }}</text>
-            <text class="muted">{{ numberText(goods.stock) }}件 · 售¥{{ money(goods.salePrice) }} · 佣¥{{ money(goods.defaultCommission) }}</text>
+            <text class="muted">{{ numberText(goods.stock) }}件 · 售¥{{ money(goods.salePrice) }} · 售佣¥{{ money(goods.saleCommission || 0) }}</text>
           </view>
           <view class="actions">
             <button class="mini-button" @click="startEdit(goods)">编辑</button>
@@ -140,7 +183,8 @@ const emptyForm = () => ({
   stock: '',
   costPrice: '',
   salePrice: '',
-  defaultCommission: ''
+  defaultCommission: '',
+  saleCommission: ''
 })
 
 const emptyImportForm = () => ({
@@ -150,7 +194,8 @@ const emptyImportForm = () => ({
   weight: '',
   totalAmount: '',
   totalCommission: '',
-  salePrice: ''
+  salePrice: '',
+  saleCommission: ''
 })
 
 export default {
@@ -260,7 +305,8 @@ export default {
         stock: editingExisting ? goods.stock : '',
         costPrice: goods.costPrice,
         salePrice: goods.salePrice,
-        defaultCommission: goods.defaultCommission
+        defaultCommission: goods.defaultCommission,
+        saleCommission: goods.saleCommission || 0
       }
       this.formNameSuggestions = []
     },
@@ -344,7 +390,8 @@ export default {
         stock: goods.stock,
         costPrice: goods.costPrice,
         salePrice: goods.salePrice,
-        defaultCommission: goods.defaultCommission
+        defaultCommission: goods.defaultCommission,
+        saleCommission: goods.saleCommission || 0
       }
       this.editing = true
       this.importing = false
@@ -388,7 +435,8 @@ export default {
           stock: pieces,
           costPrice: this.importCostPrice,
           salePrice,
-          defaultCommission: this.importCommission
+          defaultCommission: this.importCommission,
+          saleCommission: Number(this.importForm.saleCommission || 0)
         }
       })
       uni.showToast({ title: '已导入', icon: 'success' })
@@ -408,7 +456,8 @@ export default {
         stock: Number(this.form.stock || 0),
         costPrice: Number(this.form.costPrice || 0),
         salePrice: Number(this.form.salePrice || 0),
-        defaultCommission: Number(this.form.defaultCommission || 0)
+        defaultCommission: Number(this.form.defaultCommission || 0),
+        saleCommission: Number(this.form.saleCommission || 0)
       }
       if (this.form.id) {
         await request({ url: `/api/goods/${this.form.id}`, method: 'PATCH', data })
@@ -489,6 +538,16 @@ export default {
 
 .field-block {
   position: relative;
+  min-width: 0;
+}
+
+.field-label.block {
+  display: block;
+  margin-bottom: 8rpx;
+  color: #17362f;
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 1.2;
 }
 
 .full-span {
@@ -499,7 +558,7 @@ export default {
   position: absolute;
   left: 0;
   right: 0;
-  top: 76rpx;
+  top: 108rpx;
   z-index: 99;
   max-height: 220rpx;
   border: 1rpx solid #dce5dc;
@@ -524,8 +583,17 @@ export default {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
+  gap: 14rpx 12rpx;
   margin-bottom: 16rpx;
+}
+
+.form-grid .input,
+.form-grid .picker-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 66rpx;
+  padding: 0 16rpx;
+  font-size: 25rpx;
 }
 
 .import-panel {

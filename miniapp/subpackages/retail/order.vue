@@ -96,7 +96,7 @@ export default {
       const weight = Number(this.form.weight || 0)
       const price = Number(product.price || 0)
       const commission = Number(product.commission || 0)
-      return product.unitType === 'weight' ? weight * price + commission : quantity * price + commission
+      return product.unitType === 'weight' ? weight * price + quantity * commission : quantity * price + quantity * commission
     },
     total() {
       return this.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
@@ -149,7 +149,8 @@ export default {
       const base = item.unitType === 'weight' && item.weight
         ? `${numberText(item.quantity)}件 ${numberText(item.weight)}斤*${money(item.price)}`
         : `${numberText(item.quantity)}件*${money(item.price)}`
-      const commission = Number(item.commission || 0) > 0 ? `+${money(item.commission)}` : ''
+      const commissionTotal = Number(item.quantity || 0) * Number(item.commission || 0)
+      const commission = commissionTotal > 0 ? `+${money(commissionTotal)}` : ''
       return `${item.goodsName} ${base}${commission}`
     },
     submitOrder() {

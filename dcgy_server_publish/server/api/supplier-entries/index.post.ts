@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
         totalCommission: input.totalCommission,
         costPrice: input.costPrice,
         commission: input.commission,
+        saleCommission: input.saleCommission,
         salePrice: input.salePrice,
         stockMode: input.stockMode,
         ...(body?.createdDate ? { createdAt: parseChinaDateTime(body.createdDate, body.createdTime || '00:00') } : {})

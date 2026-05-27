@@ -25,6 +25,7 @@ type BuiltSupermarketItem = {
   weight: number | null
   price: number
   commission: number
+  costCommission: number
   costPrice: number
   subtotal: number
   costAmount: number
@@ -70,11 +71,11 @@ function roundMoney(value: number) {
   return Number(value.toFixed(2))
 }
 
-function calcItemAmount(unitType: UnitType, quantity: number, weight: number | null, price: number, commission: number, costPrice: number) {
+function calcItemAmount(unitType: UnitType, quantity: number, weight: number | null, price: number, commission: number, costPrice: number, costCommission: number) {
   const billingAmount = unitType === 'weight' ? Number(weight || 0) : quantity
-  const subtotal = roundMoney(billingAmount * price + commission)
+  const subtotal = roundMoney(billingAmount * price + quantity * commission)
   const costAmount = roundMoney(billingAmount * costPrice)
-  const profit = roundMoney(subtotal - costAmount - commission)
+  const profit = roundMoney(subtotal - costAmount - quantity * costCommission)
   return { subtotal, costAmount, profit }
 }
 
@@ -119,8 +120,9 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
       }
       const goodsName = item.goodsName ? assertName(item.goodsName, '商品名称') : goods.name
       const costPrice = item.costPrice ?? Number(goods.costPrice)
+      const costCommission = Number(goods.defaultCommission || 0)
       const weight = goods.unitType === 'weight' ? item.weight : null
-      const amounts = calcItemAmount(goods.unitType, item.quantity, weight, item.price, item.commission, costPrice)
+      const amounts = calcItemAmount(goods.unitType, item.quantity, weight, item.price, item.commission, costPrice, costCommission)
       return {
         type: item.type,
         goodsId: goods.id,
@@ -130,6 +132,7 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
         weight,
         price: item.price,
         commission: item.commission,
+        costCommission,
         costPrice,
         ...amounts,
         stockGoods: goods
@@ -138,9 +141,10 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
 
     const goodsName = assertName(item.goodsName, '商品名称')
     const costPrice = item.costPrice ?? 0
+    const costCommission = 0
     const unitType: UnitType = item.weight > 0 ? 'weight' : 'qty'
     const weight = item.weight > 0 ? item.weight : null
-    const amounts = calcItemAmount(unitType, item.quantity, weight, item.price, item.commission, costPrice)
+    const amounts = calcItemAmount(unitType, item.quantity, weight, item.price, item.commission, costPrice, costCommission)
     return {
       type: item.type,
       goodsId: null,
@@ -150,6 +154,7 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
       weight,
       price: item.price,
       commission: item.commission,
+      costCommission,
       costPrice,
       ...amounts
     }
@@ -160,7 +165,7 @@ export function summarizeSupermarketItems(items: BuiltSupermarketItem[]) {
   return {
     totalAmount: roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0)),
     totalCost: roundMoney(items.reduce((sum, item) => sum + item.costAmount, 0)),
-    totalCommission: roundMoney(items.reduce((sum, item) => sum + item.commission, 0)),
+    totalCommission: roundMoney(items.reduce((sum, item) => sum + item.quantity * item.commission, 0)),
     totalProfit: roundMoney(items.reduce((sum, item) => sum + item.profit, 0))
   }
 }
@@ -202,6 +207,7 @@ export function mapSupermarketItemForCreate(item: BuiltSupermarketItem) {
     weight: item.weight,
     price: item.price,
     commission: item.commission,
+    costCommission: item.costCommission,
     costPrice: item.costPrice,
     subtotal: item.subtotal,
     costAmount: item.costAmount,
@@ -233,6 +239,7 @@ export function mapSupermarketOrder(order: SupermarketOrderWithItems) {
       weight: item.weight ? formatDecimal(item.weight) : null,
       price: formatDecimal(item.price),
       commission: formatDecimal(item.commission),
+      costCommission: formatDecimal(item.costCommission || 0),
       costPrice: formatDecimal(item.costPrice),
       subtotal: formatDecimal(item.subtotal),
       costAmount: formatDecimal(item.costAmount),

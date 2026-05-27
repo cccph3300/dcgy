@@ -120,7 +120,7 @@
                   <input v-model="newItem.price" class="input edit-input" type="digit" />
                 </view>
                 <view class="edit-field">
-                  <text>佣金</text>
+                  <text>售佣</text>
                   <input v-model="newItem.commission" class="input edit-input" type="digit" />
                 </view>
               </view>
@@ -148,7 +148,7 @@
               <input v-model="item.price" class="input edit-input" type="digit" @input="updateEditItem(item)" />
             </view>
             <view class="edit-field">
-              <text>佣金</text>
+              <text>售佣</text>
               <input v-model="item.commission" class="input edit-input" type="digit" @input="updateEditItem(item)" />
             </view>
           </view>
@@ -267,7 +267,7 @@ export default {
       const commission = Number(this.newItem.commission || 0)
       return goods.unitType === 'weight' && weight > 0
         ? Number((weight * price + quantity * commission).toFixed(2))
-        : Number((quantity * price + commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
     },
     canEditOrder() {
       return this.order && (this.missedMode || this.order.status === 'unpaid' || this.order.status === 'cancelled')
@@ -363,7 +363,7 @@ export default {
     itemText(item) {
       const quantity = Number(item.quantity || 0)
       const commission = Number(item.commission || 0)
-      const commissionTotal = item.unitType === 'weight' ? quantity * commission : commission
+      const commissionTotal = quantity * commission
       const base = item.unitType === 'weight' && item.weight
         ? `${item.goodsName} ${numberText(quantity)}\u4ef6 ${numberText(item.weight)}\u65a4*${money(item.price)}`
         : `${item.goodsName} ${numberText(quantity)}\u4ef6*${money(item.price)}`
@@ -376,7 +376,8 @@ export default {
       const weight = Number(item.weight || 0)
       const costPrice = Number(item.costPrice || 0)
       const costAmount = item.unitType === 'weight' && weight > 0 ? weight * costPrice : quantity * costPrice
-      return Number((Number(item.subtotal || 0) - costAmount).toFixed(2))
+      const costCommission = quantity * Number(item.costCommission || 0)
+      return Number((Number(item.subtotal || 0) - costAmount - costCommission).toFixed(2))
     },
     resetEditForm() {
       if (!this.order) return
@@ -430,7 +431,7 @@ export default {
       const commission = Number(item.commission || 0)
       item.subtotal = item.unitType === 'weight' && weight > 0
         ? Number((weight * price + quantity * commission).toFixed(2))
-        : Number((quantity * price + commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
     },
     dateInputText(value) {
       const date = new Date(value)
@@ -468,7 +469,7 @@ export default {
         quantity: '1',
         weight: '',
         price: String(goods.salePrice || goods.costPrice || 0),
-        commission: String(goods.defaultCommission || 0)
+        commission: String(goods.saleCommission || 0)
       }
     },
     addEditItem() {

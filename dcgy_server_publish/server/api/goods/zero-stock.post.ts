@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
         stock: formatDecimal(item.stock),
         salePrice: formatDecimal(item.salePrice),
         defaultCommission: formatDecimal(item.defaultCommission),
+        saleCommission: formatDecimal(item.saleCommission || 0),
         arrivedAt: item.arrivedAt
       }))
     }

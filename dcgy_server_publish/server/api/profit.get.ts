@@ -93,9 +93,10 @@ export default defineEventHandler(async (event) => {
       const quantity = Number(item.quantity)
       const weight = item.weight ? Number(item.weight) : 0
       const sales = Number(item.subtotal)
-      const cost = item.unitType === 'weight' && weight > 0
+      const baseCost = item.unitType === 'weight' && weight > 0
         ? weight * Number(item.costPrice)
         : quantity * Number(item.costPrice)
+      const cost = baseCost + quantity * Number(item.costCommission || 0)
       const profit = item.profit === null || item.profit === undefined
         ? sales - cost
         : Number(item.profit)

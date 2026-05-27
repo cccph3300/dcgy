@@ -45,6 +45,7 @@ export function buildSupplierEntryInput(body: any) {
   const totalAmount = toMoney(body?.totalAmount, '总金额')
   const totalCommission = toMoney(body?.totalCommission, '总佣金')
   const salePrice = toMoney(body?.salePrice, '售卖价')
+  const saleCommission = toMoney(body?.saleCommission, '售卖佣金')
   const stockMode = body?.stockMode === 'auto_stocked' ? 'auto_stocked' : 'record_only'
 
   if (unitType === 'weight' && weight <= 0) {
@@ -74,6 +75,7 @@ export function buildSupplierEntryInput(body: any) {
     totalCommission,
     costPrice,
     commission,
+    saleCommission,
     salePrice,
     stockMode
   }
@@ -87,6 +89,7 @@ export async function upsertSupplierStockGoods(tx: Tx, entry: ReturnType<typeof 
       costPrice: entry.costPrice,
       salePrice: entry.salePrice,
       defaultCommission: entry.commission,
+      saleCommission: entry.saleCommission,
       enabled: true
     },
     orderBy: { id: 'desc' }
@@ -116,6 +119,7 @@ export async function upsertSupplierStockGoods(tx: Tx, entry: ReturnType<typeof 
         costPrice: entry.costPrice,
         salePrice: entry.salePrice,
         defaultCommission: entry.commission,
+        saleCommission: entry.saleCommission,
         stock: entry.quantity,
         enabled: true,
         arrivedAt: new Date()
@@ -130,6 +134,7 @@ export async function upsertSupplierStockGoods(tx: Tx, entry: ReturnType<typeof 
       costPrice: entry.costPrice,
       salePrice: entry.salePrice,
       defaultCommission: entry.commission,
+      saleCommission: entry.saleCommission,
       stock: entry.quantity
     }
   })
@@ -193,6 +198,7 @@ export function mapSupplierEntry(entry: SupplierEntry | SupplierEntryWithRelatio
     totalCommission: formatDecimal(entry.totalCommission),
     costPrice: formatDecimal(entry.costPrice),
     commission: formatDecimal(entry.commission),
+    saleCommission: formatDecimal(entry.saleCommission || 0),
     salePrice: formatDecimal(entry.salePrice),
     stockMode: entry.stockMode,
     status: entry.status,

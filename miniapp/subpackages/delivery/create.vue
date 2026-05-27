@@ -54,7 +54,7 @@
           <input v-model="form.price" class="input" type="digit" />
         </view>
         <view class="field-row">
-          <text class="field-label">佣金</text>
+          <text class="field-label">售佣</text>
           <input v-model="form.commission" class="input" type="digit" />
         </view>
         <view class="field-row">
@@ -192,7 +192,7 @@ export default {
         goodsName: goods.name,
         price: String(goods.salePrice || goods.costPrice || 0),
         costPrice: String(goods.costPrice || 0),
-        commission: String(goods.defaultCommission || 0)
+        commission: String(goods.saleCommission || 0)
       }
     },
     calcSubtotal(item) {
@@ -201,8 +201,8 @@ export default {
       const price = Number(item.price || 0)
       const commission = Number(item.commission || 0)
       return weight > 0
-        ? Number((weight * price + commission).toFixed(2))
-        : Number((quantity * price + commission).toFixed(2))
+        ? Number((weight * price + quantity * commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
     },
     itemSummary(item) {
       const weight = Number(item.weight || 0)

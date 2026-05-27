@@ -25,6 +25,7 @@ function mapOrder(order: OrderWithItems) {
       weight: item.weight ? formatDecimal(item.weight) : null,
       price: formatDecimal(item.price),
       commission: formatDecimal(item.commission),
+      costCommission: formatDecimal(item.costCommission || 0),
       subtotal: formatDecimal(item.subtotal),
       costPrice: formatDecimal(item.costPrice),
       profit: formatDecimal(item.profit)

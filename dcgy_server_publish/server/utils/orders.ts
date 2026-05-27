@@ -51,16 +51,18 @@ export async function buildOrderItems(tx: Tx, rawItems: unknown) {
     const costAmount = goods.unitType === 'weight'
       ? item.weight * costPrice
       : item.quantity * costPrice
+    const costCommission = Number(goods.defaultCommission || 0)
     const subtotal = goods.unitType === 'weight'
       ? Number((item.weight * item.price + item.quantity * item.commission).toFixed(2))
-      : Number((item.quantity * item.price + item.commission).toFixed(2))
-    const profit = Number((subtotal - costAmount - item.commission).toFixed(2))
+      : Number((item.quantity * item.price + item.quantity * item.commission).toFixed(2))
+    const profit = Number((subtotal - costAmount - item.quantity * costCommission).toFixed(2))
     return {
       goods,
       quantity: item.quantity,
       weight: goods.unitType === 'weight' && item.weight > 0 ? Number(item.weight.toFixed(2)) : null,
       price: item.price,
       commission: item.commission,
+      costCommission,
       subtotal,
       costPrice,
       profit
@@ -100,6 +102,7 @@ export function mapOrderItem(item: {
   weight: number | null,
   price: number,
   commission: number,
+  costCommission: number,
   subtotal: number,
   costPrice: number,
   profit: number
@@ -112,6 +115,7 @@ export function mapOrderItem(item: {
     weight: item.weight,
     price: item.price,
     commission: item.commission,
+    costCommission: item.costCommission,
     subtotal: item.subtotal,
     costPrice: item.costPrice,
     profit: item.profit

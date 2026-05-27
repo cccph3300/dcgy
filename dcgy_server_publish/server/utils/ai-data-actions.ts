@@ -61,6 +61,7 @@ type SupplierEntryDraft = {
   totalCommission: number
   costPrice: number
   commission: number
+  saleCommission: number
   salePrice: number
   stockMode: 'auto_stocked' | 'record_only'
 }
@@ -99,6 +100,7 @@ type GoodsMutationDraft = {
   salePrice?: number | null
   costPrice?: number | null
   defaultCommission?: number | null
+  saleCommission?: number | null
 }
 
 type GoodsMutationAction = {
@@ -679,6 +681,7 @@ function extractSupplierEntryDraft(content: string): SupplierEntryDraft | string
     totalCommission: Number(totalCommission.toFixed(2)),
     costPrice,
     commission,
+    saleCommission: 0,
     salePrice: costPrice,
     stockMode: 'auto_stocked'
   }
@@ -722,7 +725,7 @@ function inferUnitTypeFromText(text: string) {
 function cleanInventoryGoodsName(text: string) {
   return normalizeGoodsName(text
     .replace(new RegExp(`(${INVENTORY_MUTATION_WORDS}|${INVENTORY_WORDS}|产品|商品|货物|水果)`, 'g'), ' ')
-    .replace(/(?:每件|一件|每个|一个|每斤|一斤|售价|卖价|价格|单价|成本|成本价|佣金|默认佣金)\s*[一两二三四五六七八九十\d]+(?:\.\d+)?\s*(?:元|块钱|块)?/g, ' ')
+    .replace(/(?:每件|一件|每个|一个|每斤|一斤|售价|卖价|价格|单价|成本|成本价|成本佣金|售卖佣金|佣金|默认佣金)\s*[一两二三四五六七八九十\d]+(?:\.\d+)?\s*(?:元|块钱|块)?/g, ' ')
     .replace(/[一两二三四五六七八九十\d]+(?:\.\d+)?\s*(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG)/g, ' ')
     .replace(/^[一两二三四五六七八九十]+/, ' '))
 }
@@ -742,11 +745,12 @@ function extractInventoryMutation(content: string) {
   const quantity = extractNumberByPattern(normalized, /([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:件|个|箱|包|筐|袋|斤|公斤|千克|kg|KG)/)
   const salePrice = extractNumberByPattern(normalized, /(?:每件|一件|每个|一个|每斤|一斤|售价|卖价|价格|单价)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
   const costPrice = extractNumberByPattern(normalized, /(?:成本|成本价)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
-  const defaultCommission = extractNumberByPattern(normalized, /(?:佣金|默认佣金)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
+  const defaultCommission = extractNumberByPattern(normalized, /(?:成本佣金|拿货佣金|默认佣金|佣金)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
+  const saleCommission = extractNumberByPattern(normalized, /(?:售卖佣金|卖货佣金|销售佣金)\s*([一两二三四五六七八九十\d]+(?:\.\d+)?)\s*(?:元|块钱|块)?/)
   const unitType = inferUnitTypeFromText(normalized)
   const goodsName = cleanInventoryGoodsName(normalized)
 
-  return { operation, goodsName, quantity, salePrice, costPrice, defaultCommission, unitType }
+  return { operation, goodsName, quantity, salePrice, costPrice, defaultCommission, saleCommission, unitType }
 }
 
 function extractSupermarketName(text: string) {
@@ -935,7 +939,7 @@ function pendingDraftItemsToDraftItems(pendingDraft?: PendingDraftContext | null
     const unitType = item.unitType === 'weight' ? 'weight' : 'qty'
     const subtotal = unitType === 'weight' && Number(weight || 0) > 0
       ? Number((Number(weight || 0) * price + quantity * commission).toFixed(2))
-      : Number((quantity * price + commission).toFixed(2))
+      : Number((quantity * price + quantity * commission).toFixed(2))
     return {
       goodsId: Number(item.goodsId || 0),
       goodsName: String(item.goodsName || ''),
@@ -996,7 +1000,7 @@ function buildQueryAction(orders: Array<{
 
 function calculateDraftTotal(items: DraftItem[]) {
   const goodsAmount = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
-  const commission = items.reduce((sum, item) => sum + Number(item.commission || 0), 0)
+  const commission = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.commission || 0), 0)
   return {
     goodsAmount: Number(goodsAmount.toFixed(2)),
     commission: Number(commission.toFixed(2))
@@ -1092,27 +1096,28 @@ function buildGoodsMutationAction(payload: DraftPayload, mutation: GoodsMutation
     summary,
     token: signDraft(payload),
     mutation,
-    table: buildTable(operationText, ['操作', '商品', '数量', '类型', '售价', '佣金', '成本'], [[
+    table: buildTable(operationText, ['操作', '商品', '数量', '类型', '售价', '成本佣金', '售卖佣金', '成本'], [[
       operationText,
       mutation.goodsName,
       quantityText,
       unitText,
       mutation.salePrice === null || mutation.salePrice === undefined ? '-' : `￥${formatDecimal(mutation.salePrice)}`,
       mutation.defaultCommission === null || mutation.defaultCommission === undefined ? '-' : `￥${formatDecimal(mutation.defaultCommission)}`,
+      mutation.saleCommission === null || mutation.saleCommission === undefined ? '-' : `￥${formatDecimal(mutation.saleCommission)}`,
       mutation.costPrice === null || mutation.costPrice === undefined ? '-' : `￥${formatDecimal(mutation.costPrice)}`
     ]])
   }
 }
 
 function buildSupplierEntryAction(payload: DraftPayload, draft: SupplierEntryDraft): CreateSupplierEntryAction {
-  const summary = `已生成入账草稿：货主 ${draft.supplierName}，${draft.goodsName} ${formatDecimal(draft.quantity)}件，${draft.unitType === 'weight' ? `${formatDecimal(draft.weight || 0)}斤，` : ''}总金额 ￥${formatDecimal(draft.totalAmount)}，佣金 ￥${formatDecimal(draft.totalCommission)}。确认后会自动入库并记录欠款。`
+  const summary = `已生成入账草稿：货主 ${draft.supplierName}，${draft.goodsName} ${formatDecimal(draft.quantity)}件，${draft.unitType === 'weight' ? `${formatDecimal(draft.weight || 0)}斤，` : ''}总金额 ￥${formatDecimal(draft.totalAmount)}，拿货佣金 ￥${formatDecimal(draft.totalCommission)}。确认后会自动入库并记录欠款。`
   return {
     kind: 'create_supplier_entry',
     title: `${draft.supplierName}入账草稿`,
     summary,
     token: signDraft(payload),
     draft,
-    table: buildTable('入账草稿', ['货主', '品名', '计费', '件数', '重量', '总金额', '总佣金', '成本', '售价'], [[
+    table: buildTable('入账草稿', ['货主', '品名', '计费', '件数', '重量', '总金额', '拿货佣金', '售卖佣金', '成本', '售价'], [[
       draft.supplierName,
       draft.goodsName,
       draft.unitType === 'weight' ? '按斤' : '按件',
@@ -1120,6 +1125,7 @@ function buildSupplierEntryAction(payload: DraftPayload, draft: SupplierEntryDra
       draft.weight ? `${formatDecimal(draft.weight)}斤` : '-',
       `￥${formatDecimal(draft.totalAmount)}`,
       `￥${formatDecimal(draft.totalCommission)}`,
+      `￥${formatDecimal(draft.saleCommission)}`,
       `￥${formatDecimal(draft.costPrice)}`,
       `￥${formatDecimal(draft.salePrice)}`
     ]])
@@ -1782,11 +1788,11 @@ async function resolveDraftItems(parsed: ParsedDraft): Promise<DraftItem[] | str
     }
 
     const price = Number((item.price ?? Number(goods.salePrice || goods.costPrice || 0)).toFixed(2))
-    const commission = Number((item.commission ?? Number(goods.defaultCommission || 0)).toFixed(2))
+    const commission = Number((item.commission ?? Number(goods.saleCommission || 0)).toFixed(2))
     const weight = goods.unitType === 'weight' ? Number((item.weight ?? item.quantity).toFixed(2)) : null
     const subtotal = goods.unitType === 'weight'
       ? Number((((weight || 0) * price) + (item.quantity * commission)).toFixed(2))
-      : Number(((item.quantity * price) + commission).toFixed(2))
+      : Number(((item.quantity * price) + item.quantity * commission).toFixed(2))
 
     resolvedItems.push({
       goodsId: goods.id,
@@ -2200,7 +2206,7 @@ async function createOrderFromDraft(staffId: number, editable?: { customerName?:
     await deductStock(tx, items)
 
     const goodsAmount = Number(items.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2))
-    const commission = Number(items.reduce((sum, item) => sum + item.commission, 0).toFixed(2))
+    const commission = Number(items.reduce((sum, item) => sum + item.quantity * item.commission, 0).toFixed(2))
     const profitAmount = Number(items.reduce((sum, item) => sum + item.profit, 0).toFixed(2))
 
     const order = await tx.order.create({
@@ -2261,7 +2267,7 @@ async function appendOrderFromDraft(orderId: number, editable?: { items?: unknow
     await tx.orderItem.deleteMany({ where: { orderId } })
 
     const goodsAmount = Number(mergedItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2))
-    const commission = Number(mergedItems.reduce((sum, item) => sum + item.commission, 0).toFixed(2))
+    const commission = Number(mergedItems.reduce((sum, item) => sum + item.quantity * item.commission, 0).toFixed(2))
     const profitAmount = Number(mergedItems.reduce((sum, item) => sum + item.profit, 0).toFixed(2))
 
     const updatedOrder = await tx.order.update({
@@ -2297,7 +2303,8 @@ async function confirmGoodsMutationFromDraft(mutation: GoodsMutationDraft) {
   const pricePatch = {
     ...(mutation.costPrice !== null && mutation.costPrice !== undefined ? { costPrice: Number(mutation.costPrice) } : {}),
     ...(mutation.salePrice !== null && mutation.salePrice !== undefined ? { salePrice: Number(mutation.salePrice) } : {}),
-    ...(mutation.defaultCommission !== null && mutation.defaultCommission !== undefined ? { defaultCommission: Number(mutation.defaultCommission) } : {})
+    ...(mutation.defaultCommission !== null && mutation.defaultCommission !== undefined ? { defaultCommission: Number(mutation.defaultCommission) } : {}),
+    ...(mutation.saleCommission !== null && mutation.saleCommission !== undefined ? { saleCommission: Number(mutation.saleCommission) } : {})
   }
 
   if (operation === 'create') {
@@ -2310,6 +2317,7 @@ async function confirmGoodsMutationFromDraft(mutation: GoodsMutationDraft) {
         salePrice: Number(mutation.salePrice ?? mutation.costPrice ?? 0),
         costPrice: Number(mutation.costPrice ?? mutation.salePrice ?? 0),
         defaultCommission: Number(mutation.defaultCommission ?? 0),
+        saleCommission: Number(mutation.saleCommission ?? 0),
         arrivedAt: new Date(),
         enabled: true
       }
@@ -2374,6 +2382,7 @@ async function createSupplierEntryFromDraft(staffId: number, editable?: { suppli
     weight: body.weight,
     totalAmount: body.totalAmount,
     totalCommission: body.totalCommission ?? 0,
+    saleCommission: body.saleCommission ?? 0,
     salePrice: body.salePrice,
     stockMode: body.stockMode || 'auto_stocked'
   })
@@ -2411,6 +2420,7 @@ async function createSupplierEntryFromDraft(staffId: number, editable?: { suppli
         totalCommission: input.totalCommission,
         costPrice: input.costPrice,
         commission: input.commission,
+        saleCommission: input.saleCommission,
         salePrice: input.salePrice,
         stockMode: input.stockMode
       }

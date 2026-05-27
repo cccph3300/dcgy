@@ -51,7 +51,7 @@
             </view>
 
             <view v-if="activeGoods && activeGoods.id === goods.id" class="order-panel">
-              <view class="panel-meta">售价 {{ money(form.price) }} / 佣金 {{ money(form.commission) }}</view>
+              <view class="panel-meta">售价 {{ money(form.price) }} / 售卖佣金 {{ money(form.commission) }}</view>
               <view class="form-grid">
                 <view class="field-row">
                   <text class="field-label">件数</text>
@@ -66,7 +66,7 @@
                   <input v-model="form.price" class="input" type="digit" />
                 </view>
                 <view class="field-row">
-                  <text class="field-label">佣金</text>
+                  <text class="field-label">售佣</text>
                   <input v-model="form.commission" class="input" type="digit" />
                 </view>
               </view>
@@ -131,7 +131,7 @@ export default {
       const commission = Number(this.form.commission || 0)
       return goods.unitType === 'weight' && weight > 0
         ? weight * price + quantity * commission
-        : quantity * price + commission
+        : quantity * price + quantity * commission
     },
     total() {
       return this.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
@@ -174,7 +174,7 @@ export default {
         quantity: '1',
         weight: '',
         price: String(goods.salePrice || goods.costPrice || 0),
-        commission: String(goods.defaultCommission || 0)
+        commission: String(goods.saleCommission || 0)
       }
     },
     addItem() {
@@ -223,7 +223,7 @@ export default {
     itemText(item) {
       const commissionTotal = item.unitType === 'weight'
         ? Number(item.quantity || 0) * Number(item.commission || 0)
-        : Number(item.commission || 0)
+        : Number(item.quantity || 0) * Number(item.commission || 0)
       const base = item.unitType === 'weight' && item.weight
         ? `${numberText(item.quantity)}件 ${numberText(item.weight)}斤*${money(item.price)}`
         : `${numberText(item.quantity)}件*${money(item.price)}`
