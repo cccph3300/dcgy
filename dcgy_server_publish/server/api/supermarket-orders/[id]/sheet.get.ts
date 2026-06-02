@@ -8,7 +8,10 @@ export default defineEventHandler(async (event) => {
   const id = Number(event.context.params?.id)
   const order = await prisma.supermarketOrder.findUnique({
     where: { id },
-    include: { items: true }
+    include: {
+      items: true,
+      adjustments: { orderBy: { sortOrder: 'asc' } }
+    }
   })
 
   if (!order) {

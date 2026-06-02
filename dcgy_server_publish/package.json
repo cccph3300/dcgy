@@ -9,7 +9,8 @@
     "preview": "node .output/server/index.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:apply:order-adjustments": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260602_add_order_adjustments.sql",
+    "db:apply:supermarket-order-adjustments": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260602_add_supermarket_order_adjustments_idempotent.sql"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0"

@@ -2,13 +2,17 @@ import { createError } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { formatDecimal } from '../../utils/number'
+import { formatOrderAdjustment } from '../../utils/orders'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
   const id = Number(event.context.params?.id)
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { items: true }
+    include: {
+      items: true,
+      adjustments: { orderBy: { sortOrder: 'asc' } }
+    }
   })
 
   if (!order) {
@@ -26,6 +30,7 @@ export default defineEventHandler(async (event) => {
     commission: formatDecimal(order.commission),
     totalAmount: formatDecimal(order.totalAmount),
     profitAmount: formatDecimal(order.profitAmount),
+    adjustmentRemark: order.adjustmentRemark || '',
     createdAt: order.createdAt,
     paidAt: order.paidAt,
     items: order.items.map(item => ({
@@ -41,6 +46,7 @@ export default defineEventHandler(async (event) => {
       subtotal: formatDecimal(item.subtotal),
       costPrice: formatDecimal(item.costPrice),
       profit: formatDecimal(item.profit)
-    }))
+    })),
+    adjustments: order.adjustments.map(formatOrderAdjustment)
   }
 })

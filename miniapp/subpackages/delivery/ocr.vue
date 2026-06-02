@@ -84,6 +84,30 @@
       <view v-if="!items.length" class="empty">上传图片后会自动生成明细，也可以手动加一行。</view>
     </view>
 
+    <view class="soft-card adjustment-card">
+      <view class="adjustment-remark-row">
+        <text class="field-label">备注</text>
+        <input v-model="adjustmentRemark" class="input" placeholder="如路费和退框" />
+      </view>
+      <view v-for="(row, index) in adjustments" :key="row.key" class="adjustment-row">
+        <view class="adjustment-name-cell">
+          <input v-model="row.name" class="input adjustment-name-input" placeholder="名称" />
+          <view class="name-quick-actions">
+            <button v-for="name in adjustmentNameOptions" :key="name" class="name-quick" @click="setAdjustmentName(index, name)">{{ name }}</button>
+          </view>
+        </view>
+        <picker :range="adjustmentTypeLabels" :value="adjustmentTypeIndex(row.type)" @change="changeAdjustmentType(index, $event)">
+          <view class="input picker-input type-picker">{{ adjustmentSign(row.type) }}</view>
+        </picker>
+        <input v-model="row.amount" class="input adjustment-amount" type="digit" placeholder="金额" />
+        <button class="mini-delete" @click="removeAdjustment(index)">删</button>
+      </view>
+      <view class="adjustment-actions">
+        <text v-if="adjustments.length" class="adjustment-total">调整 {{ adjustmentTotal >= 0 ? '+' : '-' }}¥{{ money(Math.abs(adjustmentTotal)) }}</text>
+        <button class="mini-add" @click="addAdjustment">+</button>
+      </view>
+    </view>
+
     <view class="total-bar">
       <text>合计 ¥{{ money(totalAmount) }}</text>
       <button class="soft-button" @click="addBlankItem">手动加一行</button>
@@ -112,6 +136,12 @@ const emptyItem = () => ({
   costPrice: ''
 })
 
+const ADJUSTMENT_NAMES = ['货拉拉', '胶框']
+const ADJUSTMENT_TYPES = [
+  { label: '+', value: 'add' },
+  { label: '-', value: 'subtract' }
+]
+
 export default {
   data() {
     return {
@@ -119,6 +149,9 @@ export default {
       imagePath: '',
       ocrText: '',
       items: [],
+      adjustmentRemark: '',
+      adjustments: [],
+      nextAdjustmentKey: 1,
       goodsList: [],
       recognizing: false,
       submitting: false,
@@ -128,7 +161,23 @@ export default {
   },
   computed: {
     totalAmount() {
-      return this.items.reduce((sum, item) => sum + this.calcSubtotal(item), 0)
+      return Number((this.goodsTotal + this.adjustmentTotal).toFixed(2))
+    },
+    goodsTotal() {
+      return Number(this.items.reduce((sum, item) => sum + this.calcSubtotal(item), 0).toFixed(2))
+    },
+    adjustmentTotal() {
+      return Number(this.adjustments.reduce((sum, item) => {
+        const amount = Number(item.amount || 0)
+        if (!Number.isFinite(amount) || amount <= 0) return sum
+        return sum + (item.type === 'subtract' ? -amount : amount)
+      }, 0).toFixed(2))
+    },
+    adjustmentNameOptions() {
+      return ADJUSTMENT_NAMES
+    },
+    adjustmentTypeLabels() {
+      return ADJUSTMENT_TYPES.map(item => item.label)
     }
   },
   onShow() {
@@ -144,6 +193,58 @@ export default {
   },
   methods: {
     money,
+    adjustmentTypeIndex(type) {
+      const index = ADJUSTMENT_TYPES.findIndex(item => item.value === type)
+      return index >= 0 ? index : 0
+    },
+    adjustmentSign(type) {
+      return type === 'subtract' ? '-' : '+'
+    },
+    addAdjustment() {
+      this.adjustments.push({
+        key: this.nextAdjustmentKey++,
+        name: '',
+        type: 'add',
+        amount: ''
+      })
+    },
+    removeAdjustment(index) {
+      this.adjustments.splice(index, 1)
+    },
+    setAdjustmentName(index, name) {
+      const row = this.adjustments[index]
+      if (!row) return
+      row.name = name
+    },
+    changeAdjustmentType(index, event) {
+      const row = this.adjustments[index]
+      if (!row) return
+      const option = ADJUSTMENT_TYPES[Number(event.detail.value || 0)] || ADJUSTMENT_TYPES[0]
+      row.type = option.value
+    },
+    buildAdjustmentsPayload() {
+      return this.adjustments
+        .filter(item => item.name || Number(item.amount || 0) > 0)
+        .map(item => ({
+          name: item.name,
+          type: item.type,
+          amount: Number(item.amount || 0)
+        }))
+    },
+    validateAdjustments() {
+      const invalid = this.buildAdjustmentsPayload().some(item => {
+        return !item.name || (item.type !== 'add' && item.type !== 'subtract') || !Number.isFinite(item.amount) || item.amount <= 0
+      })
+      if (invalid) {
+        uni.showToast({ title: '请检查备注调整金额', icon: 'none' })
+        return false
+      }
+      if (this.totalAmount < 0) {
+        uni.showToast({ title: '合计金额不能小于0', icon: 'none' })
+        return false
+      }
+      return true
+    },
     async loadGoods() {
       this.goodsList = await request({ url: '/api/goods' })
     },
@@ -382,14 +483,16 @@ export default {
       this.items.push(emptyItem())
     },
     hasDraftContent() {
-      return Boolean(this.marketName.trim() || this.ocrText || this.imagePath || this.items.some(item => item.goodsName || item.price || item.costPrice || item.weight))
+      return Boolean(this.marketName.trim() || this.ocrText || this.imagePath || this.adjustmentRemark.trim() || this.adjustments.length || this.items.some(item => item.goodsName || item.price || item.costPrice || item.weight))
     },
     draftPayload() {
       return {
         marketName: this.marketName,
         imagePath: this.imagePath,
         ocrText: this.ocrText,
-        items: this.items
+        items: this.items,
+        adjustmentRemark: this.adjustmentRemark,
+        adjustments: this.adjustments
       }
     },
     draftText() {
@@ -407,6 +510,10 @@ export default {
       this.imagePath = draft.imagePath || ''
       this.ocrText = draft.ocrText || ''
       this.items = Array.isArray(draft.items) ? draft.items.map(item => ({ ...emptyItem(), ...item })) : []
+      this.adjustmentRemark = draft.adjustmentRemark || ''
+      this.adjustments = Array.isArray(draft.adjustments)
+        ? draft.adjustments.map(item => ({ key: this.nextAdjustmentKey++, name: item.name || '', type: item.type || 'add', amount: item.amount || '' }))
+        : []
       this.savedDraftText = this.draftText()
     },
     clearDraft() {
@@ -472,6 +579,7 @@ export default {
     },
     submitOrder() {
       if (!this.validateOrder()) return
+      if (!this.validateAdjustments()) return
       uni.showModal({
         title: '确认出单',
         content: `超市：${this.marketName.trim()}\n总金额：¥${money(this.totalAmount)}`,
@@ -490,6 +598,8 @@ export default {
           method: 'POST',
           data: {
             supermarketName: this.marketName.trim(),
+            adjustmentRemark: this.adjustmentRemark.trim(),
+            adjustments: this.buildAdjustmentsPayload(),
             items: this.items.map(item => ({
               type: item.type === 'own' ? 'own' : 'purchase',
               goodsId: item.type === 'own' ? item.goodsId : null,
@@ -529,7 +639,8 @@ export default {
 
 .shop-card,
 .upload-card,
-.detail-card {
+.detail-card,
+.adjustment-card {
   padding: 18rpx;
   border-color: #cdd8fb;
   background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
@@ -553,6 +664,109 @@ export default {
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
+}
+
+.adjustment-remark-row {
+  display: grid;
+  grid-template-columns: 68rpx minmax(0, 1fr);
+  gap: 10rpx;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.adjustment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) 84rpx minmax(0, 1fr) 60rpx;
+  gap: 10rpx;
+  align-items: start;
+  min-height: 66rpx;
+  margin-top: 10rpx;
+}
+
+.adjustment-name-cell {
+  min-width: 0;
+}
+
+.adjustment-name-input,
+.adjustment-amount {
+  min-width: 0;
+  min-height: 64rpx;
+  padding: 0 14rpx;
+}
+
+.name-quick-actions {
+  display: flex;
+  gap: 8rpx;
+  margin-top: 8rpx;
+}
+
+.name-quick {
+  width: auto;
+  height: 42rpx;
+  min-height: 42rpx;
+  margin: 0;
+  padding: 0 14rpx;
+  border-radius: 12rpx;
+  background: #d9e8ff;
+  color: #254ea8;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 42rpx;
+}
+
+.name-quick::after {
+  display: none;
+  border: 0;
+}
+
+.picker-input {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 64rpx;
+  padding: 0 14rpx;
+  color: #18366f;
+  font-weight: 900;
+}
+
+.type-picker {
+  justify-content: center;
+  padding: 0;
+  color: #2f68d8;
+  font-size: 32rpx;
+}
+
+.adjustment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.adjustment-total {
+  color: #2f68d8;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.mini-add {
+  width: 64rpx;
+  height: 54rpx;
+  min-height: 54rpx;
+  margin: 0;
+  border-radius: 14rpx;
+  background: #d9e8ff;
+  color: #2f68d8;
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 54rpx;
+}
+
+.mini-add::after {
+  display: none;
+  border: 0;
 }
 
 .upload-head {

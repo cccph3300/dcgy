@@ -2,6 +2,12 @@ import { createError, readBody } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { formatDecimal } from '../../utils/number'
+import {
+  buildOrderAdjustments,
+  formatOrderAdjustment,
+  parseOrderAdjustmentRemark,
+  sumOrderAdjustments
+} from '../../utils/orders'
 import { buildXpyunReceipt, sendXpyunPrint } from '../../utils/xpyun'
 import { getPrintErrorMessage, savePrintRecord } from '../../utils/print-record'
 
@@ -14,7 +20,10 @@ export default defineEventHandler(async (event) => {
   if (orderId > 0) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true }
+      include: {
+        items: true,
+        adjustments: { orderBy: { sortOrder: 'asc' } }
+      }
     })
     if (!order) {
       throw createError({ statusCode: 404, statusMessage: '订单不存在' })
@@ -29,6 +38,8 @@ export default defineEventHandler(async (event) => {
       staffName: order.staffName,
       createdAt: order.createdAt,
       totalAmount: formatDecimal(order.totalAmount),
+      adjustmentRemark: order.adjustmentRemark || '',
+      adjustments: order.adjustments.map(formatOrderAdjustment),
       items: order.items.map(item => ({
         goodsName: item.goodsName,
         quantity: formatDecimal(item.quantity),
@@ -42,12 +53,23 @@ export default defineEventHandler(async (event) => {
     if (!Array.isArray(body?.items) || body.items.length === 0) {
       throw createError({ statusCode: 400, statusMessage: '打印内容不能为空' })
     }
+    const adjustments = buildOrderAdjustments(body?.adjustments)
+    const goodsAmount = Number(body.items.reduce((sum: number, item: any) => {
+      return sum + Number(item?.subtotal || 0)
+    }, 0).toFixed(2))
+    const totalAmount = Number((goodsAmount + sumOrderAdjustments(adjustments)).toFixed(2))
+    if (totalAmount < 0) {
+      throw createError({ statusCode: 400, statusMessage: '订单总金额不能小于0' })
+    }
+
     printOrder = {
       orderNo: String(body?.orderNo || ''),
       customerName: String(body?.customerName || '客户'),
       staffName: String(body?.staffName || staff.name || ''),
       createdAt: body?.createdAt || new Date(),
-      totalAmount: Number(body?.totalAmount || 0),
+      totalAmount,
+      adjustmentRemark: parseOrderAdjustmentRemark(body?.adjustmentRemark ?? body?.remark),
+      adjustments: adjustments.map(formatOrderAdjustment),
       items: body.items
     }
   }

@@ -145,7 +145,9 @@ model Order {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   profitAmount Decimal     @default(0.00) @map("profit_amount") @db.Decimal(10, 2)
+  adjustmentRemark String? @map("adjustment_remark") @db.VarChar(100)
   items        OrderItem[]
+  adjustments  OrderAdjustment[]
   customer     Customer    @relation(fields: [customerId], references: [id])
   staff        StaffUser   @relation(fields: [staffId], references: [id])
 
@@ -154,6 +156,20 @@ model Order {
   @@index([customerId], map: "orders_customer_id_fkey")
   @@index([staffId], map: "orders_staff_id_fkey")
   @@map("orders")
+}
+
+model OrderAdjustment {
+  id        Int                 @id @default(autoincrement())
+  orderId   Int                 @map("order_id")
+  name      String              @db.VarChar(30)
+  type      OrderAdjustmentType
+  amount    Decimal             @db.Decimal(10, 2)
+  sortOrder Int                 @default(0) @map("sort_order")
+  createdAt DateTime            @default(now()) @map("created_at")
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_adjustments")
 }
 
 model OrderItem {
@@ -192,7 +208,9 @@ model SupermarketOrder {
   cancelledAt     DateTime?              @map("cancelled_at")
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
+  adjustmentRemark String?               @map("adjustment_remark") @db.VarChar(100)
   items           SupermarketOrderItem[]
+  adjustments     SupermarketOrderAdjustment[]
   staff           StaffUser              @relation(fields: [staffId], references: [id])
 
   @@index([createdAt])
@@ -200,6 +218,20 @@ model SupermarketOrder {
   @@index([status])
   @@index([staffId], map: "supermarket_orders_staff_id_fkey")
   @@map("supermarket_orders")
+}
+
+model SupermarketOrderAdjustment {
+  id        Int                 @id @default(autoincrement())
+  orderId   Int                 @map("order_id")
+  name      String              @db.VarChar(30)
+  type      OrderAdjustmentType
+  amount    Decimal             @db.Decimal(10, 2)
+  sortOrder Int                 @default(0) @map("sort_order")
+  createdAt DateTime            @default(now()) @map("created_at")
+  order     SupermarketOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("supermarket_order_adjustments")
 }
 
 model SupermarketOrderItem {
@@ -349,6 +381,11 @@ enum OrderStatus {
   unpaid
   paid
   cancelled
+}
+
+enum OrderAdjustmentType {
+  add
+  subtract
 }
 
 enum SupermarketOrderStatus {

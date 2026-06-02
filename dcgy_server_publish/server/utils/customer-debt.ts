@@ -1,8 +1,9 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from './prisma'
 import { formatDecimal } from './number'
+import { formatOrderAdjustment } from './orders'
 
-type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
+type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true, adjustments: true } }>
 
 type CustomerDebtOptions = {
   includeAllOrders?: boolean
@@ -16,6 +17,7 @@ function mapOrder(order: OrderWithItems) {
     status: order.status,
     totalAmount: formatDecimal(order.totalAmount),
     profitAmount: formatDecimal(order.profitAmount),
+    adjustmentRemark: order.adjustmentRemark || '',
     createdAt: order.createdAt,
     items: order.items.map(item => ({
       id: item.id,
@@ -29,7 +31,8 @@ function mapOrder(order: OrderWithItems) {
       subtotal: formatDecimal(item.subtotal),
       costPrice: formatDecimal(item.costPrice),
       profit: formatDecimal(item.profit)
-    }))
+    })),
+    adjustments: order.adjustments.map(formatOrderAdjustment)
   }
 }
 
@@ -47,7 +50,10 @@ export async function getCustomerDebt(customerId: number, options: CustomerDebtO
       status: 'unpaid'
     },
     orderBy: { createdAt: 'desc' },
-    include: { items: true }
+    include: {
+      items: true,
+      adjustments: { orderBy: { sortOrder: 'asc' } }
+    }
   })
 
   const allOrders = includeAllOrders
@@ -57,7 +63,10 @@ export async function getCustomerDebt(customerId: number, options: CustomerDebtO
           createdAt: { gte: oneYearAgo() }
         },
         orderBy: { createdAt: 'desc' },
-        include: { items: true }
+        include: {
+          items: true,
+          adjustments: { orderBy: { sortOrder: 'asc' } }
+        }
       })
     : []
 

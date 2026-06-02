@@ -52,9 +52,14 @@
             <text>{{ numberText(item.quantity) }}</text>
             <text>{{ sheetNumber(item.weight) }}</text>
             <text>{{ sheetMoney(item.price) }}</text>
-            <text>{{ sheetMoney(item.commission) }}</text>
+            <text>{{ sheetMoney(item.lineCommission) }}</text>
             <text>{{ sheetMoney(item.subtotal) }}</text>
             <text v-if="profitMode" :class="{ loss: Number(item.profit || 0) < 0 }">{{ sheetMoney(item.profit) }}</text>
+          </view>
+          <view v-if="sheetAdjustmentRemark" class="sheet-adjustment-remark">备注：{{ sheetAdjustmentRemark }}</view>
+          <view v-for="(item, index) in sheetAdjustments" :key="`adjustment-${index}`" class="sheet-adjustment-row">
+            <text class="sheet-adjustment-name">{{ item.name }}</text>
+            <text class="sheet-adjustment-amount" :class="{ subtract: item.type === 'subtract' }">{{ adjustmentText(item) }}</text>
           </view>
         </view>
         <view class="sheet-total">
@@ -63,12 +68,6 @@
             <text>合计总价: ¥{{ money(order.totalAmount) }}</text>
           </view>
         </view>
-      </view>
-
-      <view class="soft-card totals-card">
-        <view class="total-line"><text>总成本</text><text>¥{{ money(order.totalCost) }}</text></view>
-        <view class="total-line"><text>总佣金</text><text>¥{{ money(order.totalCommission) }}</text></view>
-        <view class="total-line profit"><text>总利润</text><text>¥{{ money(order.totalProfit) }}</text></view>
       </view>
 
       <canvas
@@ -141,13 +140,28 @@ export default {
         const source = orderItems[index] || {}
         const subtotal = row.subtotal ?? row.total ?? source.subtotal ?? 0
         const profit = row.profit ?? source.profit ?? this.calcItemProfit({ ...source, ...row, subtotal })
+        const lineCommission = row.lineCommission ?? row.totalCommission ?? this.calcLineCommission({ ...source, ...row })
         return {
           ...source,
           ...row,
           subtotal,
-          profit
+          profit,
+          lineCommission
         }
       })
+    },
+    sheetAdjustmentRemark() {
+      return String(this.sheet.adjustmentRemark || this.order?.adjustmentRemark || '').trim()
+    },
+    sheetAdjustments() {
+      const rawAdjustments = this.sheet.adjustments || this.order?.adjustments || []
+      return rawAdjustments
+        .map(item => ({
+          name: String(item.name || '').trim(),
+          type: item.type === 'subtract' ? 'subtract' : 'add',
+          amount: Math.abs(Number(item.amount || item.signedAmount || 0))
+        }))
+        .filter(item => item.name && Number.isFinite(item.amount) && item.amount > 0)
     },
     sheetTitle() {
       const name = this.sheet.supermarketName || this.order?.supermarketName || '超市'
@@ -213,6 +227,25 @@ export default {
       if (amount === 0) return '-'
       return numberText(amount)
     },
+    adjustmentText(item) {
+      const sign = item.type === 'subtract' ? '-' : '+'
+      return `${sign}¥${money(item.amount)}`
+    },
+    getAdjustmentImageLines() {
+      const lines = []
+      if (this.sheetAdjustmentRemark) {
+        lines.push({ kind: 'remark', text: `备注：${this.sheetAdjustmentRemark}` })
+      }
+      this.sheetAdjustments.forEach(item => {
+        lines.push({
+          kind: 'amount',
+          name: item.name,
+          amount: this.adjustmentText(item),
+          type: item.type
+        })
+      })
+      return lines
+    },
     buildImageRows() {
       return this.sheetRows.map((item, index) => ({
         index: index + 1,
@@ -220,7 +253,7 @@ export default {
         quantity: numberText(item.quantity),
         weight: this.sheetNumber(item.weight),
         price: this.sheetMoney(item.price),
-        commission: this.sheetMoney(item.commission),
+        commission: this.sheetMoney(item.lineCommission),
         subtotal: this.sheetMoney(item.subtotal),
         profit: this.sheetMoney(item.profit)
       }))
@@ -232,17 +265,22 @@ export default {
       const costAmount = item.costAmount !== undefined && item.costAmount !== null
         ? Number(item.costAmount || 0)
         : (item.unitType === 'weight' && weight > 0 ? weight * costPrice : quantity * costPrice)
-      return Number((Number(item.subtotal || 0) - costAmount - Number(item.commission || 0)).toFixed(2))
+      return Number((Number(item.subtotal || 0) - costAmount - this.calcLineCommission(item)).toFixed(2))
+    },
+    calcLineCommission(item) {
+      return Number((Number(item.quantity || 0) * Number(item.commission || 0)).toFixed(2))
     },
     getSheetImageSize() {
       const rows = this.buildImageRows()
+      const adjustmentLines = this.getAdjustmentImageLines()
       const width = 750
       const rowHeight = 58
-      const height = 192 + rows.length * rowHeight + 86
-      return { rows, width, rowHeight, height }
+      const adjustmentHeight = adjustmentLines.length * 46
+      const height = 192 + rows.length * rowHeight + adjustmentHeight + 86
+      return { rows, adjustmentLines, width, rowHeight, adjustmentHeight, height }
     },
     drawSheetCanvas(size) {
-      const { rows, width, rowHeight, height } = size
+      const { rows, adjustmentLines, width, rowHeight, height } = size
       this.canvasWidth = width
       this.canvasHeight = height
       const ctx = uni.createCanvasContext('sheetCanvas', this)
@@ -304,7 +342,26 @@ export default {
         })
       })
 
-      const totalY = 152 + rows.length * rowHeight
+      const adjustmentStartY = 152 + rows.length * rowHeight
+      adjustmentLines.forEach((line, index) => {
+        const y = adjustmentStartY + index * 46
+        ctx.setFillStyle(index % 2 === 1 ? '#f7faff' : '#ffffff')
+        ctx.fillRect(0, y, width, 46)
+        ctx.setFontSize(24)
+        if (line.kind === 'remark') {
+          ctx.setFillStyle('#334a9a')
+          ctx.setTextAlign('left')
+          ctx.fillText(line.text, 24, y + 31)
+          return
+        }
+        ctx.setFillStyle('#1f2f63')
+        ctx.setTextAlign('right')
+        ctx.fillText(line.name, width - 150, y + 31)
+        ctx.setFillStyle(line.type === 'subtract' ? '#d64b3f' : '#2f68d8')
+        ctx.fillText(line.amount, width - 24, y + 31)
+      })
+
+      const totalY = adjustmentStartY + adjustmentLines.length * 46
       ctx.setFillStyle('#17362f')
       ctx.setFontSize(30)
       ctx.setTextAlign('left')
@@ -560,6 +617,45 @@ export default {
 
 .sheet-row.even {
   background: #eeeeee;
+}
+
+.sheet-adjustment-remark {
+  min-height: 48rpx;
+  padding: 12rpx 18rpx;
+  border-top: 1rpx solid #e7ecfa;
+  color: #334a9a;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.sheet-adjustment-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18rpx;
+  min-height: 48rpx;
+  padding: 0 18rpx;
+  border-top: 1rpx solid #e7ecfa;
+  color: #1f2f63;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.sheet-adjustment-name {
+  max-width: 260rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-adjustment-amount {
+  min-width: 120rpx;
+  color: #2f68d8;
+  text-align: right;
+}
+
+.sheet-adjustment-amount.subtract {
+  color: #d64b3f;
 }
 
 .sheet-total {

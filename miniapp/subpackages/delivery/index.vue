@@ -15,15 +15,25 @@
         <view class="action-title">新建送货单</view>
         <view class="action-desc">录入自家商品和代采购商品</view>
       </view>
+      <view class="action-card ocr" @click="openOcr">
+        <view class="action-icon">识</view>
+        <view class="action-title">文本识别送货单</view>
+        <view class="action-desc">拍照或粘贴文本后自动识别</view>
+      </view>
+      <view class="action-card markets" @click="openMarkets">
+        <view class="action-icon">市</view>
+        <view class="action-title">所有超市</view>
+        <view class="action-desc">按超市查看未结订单</view>
+      </view>
       <view class="action-card list" @click="openList">
         <view class="action-icon">单</view>
         <view class="action-title">查看超市订单</view>
         <view class="action-desc">按日期、超市和状态查看</view>
       </view>
-      <view class="action-card ocr" @click="openOcr">
-        <view class="action-icon">识</view>
-        <view class="action-title">文本识别送货单</view>
-        <view class="action-desc">拍照或粘贴文本后自动识别</view>
+      <view class="action-card profit" @click="openProfit">
+        <view class="action-icon">利</view>
+        <view class="action-title">超市利润</view>
+        <view class="action-desc">查看成本、佣金和利润明细</view>
       </view>
       <view class="action-card trash" @click="openRecycle">
         <view class="action-icon">收</view>
@@ -54,6 +64,12 @@ export default {
     },
     openList() {
       uni.navigateTo({ url: '/subpackages/delivery/list' })
+    },
+    openMarkets() {
+      uni.navigateTo({ url: '/subpackages/delivery/supermarkets' })
+    },
+    openProfit() {
+      uni.navigateTo({ url: '/subpackages/delivery/supermarket-profit' })
     },
     openRecycle() {
       uni.navigateTo({ url: '/subpackages/delivery/recycle' })
@@ -121,13 +137,16 @@ export default {
 .action-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16rpx;
+  gap: 18rpx;
   margin-bottom: 18rpx;
 }
 
 .action-card {
-  min-height: 210rpx;
-  padding: 22rpx;
+  display: flex;
+  min-height: 196rpx;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24rpx;
   border: 2rpx solid #cdd8fb;
   border-radius: 20rpx;
   background: linear-gradient(145deg, #ffffff 0%, #edf2ff 100%);
@@ -135,10 +154,15 @@ export default {
 }
 
 .action-card.list,
-.action-card.trash {
-  margin-top: 36rpx;
+.action-card.trash,
+.action-card.profit {
   border-color: #e2d4ff;
   background: linear-gradient(145deg, #ffffff 0%, #f3efff 100%);
+}
+
+.action-card.markets {
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #edf2ff 100%);
 }
 
 .action-card.ocr {
@@ -168,14 +192,22 @@ export default {
   background: #2f7fc1;
 }
 
+.markets .action-icon {
+  background: #4d6ed8;
+}
+
+.profit .action-icon {
+  background: #6f58c9;
+}
+
 .trash .action-icon {
   background: #47618f;
 }
 
 .action-title {
-  margin-top: 22rpx;
+  margin-top: 20rpx;
   color: #1f2f63;
-  font-size: 32rpx;
+  font-size: 31rpx;
   font-weight: 900;
 }
 

@@ -53,7 +53,10 @@ export default defineEventHandler(async (event) => {
         status: 'active',
         cancelledAt: null
       },
-      include: { items: true }
+      include: {
+        items: true,
+        adjustments: { orderBy: { sortOrder: 'asc' } }
+      }
     })
 
     return mapSupermarketOrder(updated)

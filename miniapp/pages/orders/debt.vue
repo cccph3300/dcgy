@@ -83,6 +83,14 @@
             </view>
           </view>
 
+          <view v-if="hasAdjustments(order)" class="order-adjustments">
+            <view v-if="order.adjustmentRemark" class="adjustment-remark">备注：{{ order.adjustmentRemark }}</view>
+            <view v-for="item in order.adjustments" :key="item.id || item.name" class="adjustment-row">
+              <text>{{ item.name }}</text>
+              <text>{{ adjustmentSign(item.type) }}¥{{ amountText(item, 'amount') }}</text>
+            </view>
+          </view>
+
           <view v-for="item in order.items" :key="item.id" class="item-row">
             <view class="item-main">
               <text class="goods-name">{{ item.goodsName }}</text>
@@ -200,6 +208,12 @@ export default {
         }
       }
       return money(0)
+    },
+    hasAdjustments(order) {
+      return Boolean(order?.adjustmentRemark) || Boolean(order?.adjustments?.length)
+    },
+    adjustmentSign(type) {
+      return type === 'subtract' ? '-' : '+'
     },
     getCustomerClass(name) {
       if ((name || '').trim() === '客户') return 'customer-default'
@@ -677,6 +691,31 @@ export default {
 .pay-action::after {
   display: none;
   border: 0;
+}
+
+.order-adjustments {
+  margin-top: 12rpx;
+  padding: 12rpx 14rpx;
+  border-radius: 12rpx;
+  background: #f7fbf3;
+}
+
+.adjustment-remark {
+  margin-bottom: 6rpx;
+  color: #17362f;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.adjustment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  min-height: 40rpx;
+  color: #166b4e;
+  font-size: 24rpx;
+  font-weight: 900;
 }
 
 .modal-mask {

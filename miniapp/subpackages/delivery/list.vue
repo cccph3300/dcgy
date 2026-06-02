@@ -220,13 +220,21 @@ export default {
 </script>
 
 <style scoped>
+.delivery-list {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 4%, rgba(255, 191, 63, 0.16), transparent 180rpx),
+    radial-gradient(circle at 92% 10%, rgba(22, 148, 95, 0.12), transparent 220rpx),
+    linear-gradient(180deg, #f8fbf2 0%, #eef7ed 100%);
+}
+
 .filter-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12rpx;
   padding: 16rpx;
-  border-color: #cdd8fb;
-  background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
+  border-color: #dfe8d8;
+  background: linear-gradient(145deg, #ffffff 0%, #f6fbf1 100%);
 }
 
 .date-wrap {
@@ -252,7 +260,7 @@ export default {
 }
 
 .range-sep {
-  color: #697597;
+  color: #748078;
   font-size: 24rpx;
   font-weight: 900;
   text-align: center;
@@ -272,8 +280,8 @@ export default {
   justify-content: center;
   min-height: 68rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #166b4e;
   font-size: 24rpx;
   font-weight: 900;
 }
@@ -286,16 +294,16 @@ export default {
   min-height: 68rpx;
   padding: 0 8rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #166b4e;
   font-size: 24rpx;
   font-weight: 900;
 }
 
 .list-card {
   padding: 18rpx;
-  border-color: #cdd8fb;
-  background: linear-gradient(145deg, #ffffff 0%, #f6f8ff 100%);
+  border-color: #dfe8d8;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fbf4 100%);
 }
 
 .title-row,
@@ -309,7 +317,7 @@ export default {
 }
 
 .count {
-  color: #697597;
+  color: #748078;
   font-size: 24rpx;
   font-weight: 900;
 }
@@ -317,15 +325,15 @@ export default {
 .order-row {
   margin-bottom: 12rpx;
   padding: 16rpx;
-  border: 2rpx solid #d9e1fb;
+  border: 2rpx solid #dfe8d8;
   border-radius: 16rpx;
-  background: #ffffff;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdf8 100%);
 }
 
 .market {
   max-width: 300rpx;
   overflow: hidden;
-  color: #1f2f63;
+  color: #17362f;
   font-size: 30rpx;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -333,7 +341,7 @@ export default {
 }
 
 .amount {
-  color: #4d6ed8;
+  color: #16945f;
   font-size: 30rpx;
   font-weight: 900;
 }
@@ -348,7 +356,7 @@ export default {
 }
 
 .profit {
-  color: #4d6ed8;
+  color: #16945f;
   font-size: 24rpx;
   font-weight: 900;
 }
@@ -361,8 +369,8 @@ export default {
   min-width: 92rpx;
   height: 44rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #166b4e;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 44rpx;
@@ -388,7 +396,7 @@ export default {
   height: 44rpx;
   min-height: 44rpx;
   border-radius: 12rpx;
-  background: #4d6ed8;
+  background: #16945f;
   color: #ffffff;
   font-size: 24rpx;
   font-weight: 900;
@@ -405,8 +413,8 @@ export default {
   height: 54rpx;
   min-height: 54rpx;
   border-radius: 12rpx;
-  background: #e9eefb;
-  color: #4d6ed8;
+  background: #e8f6ed;
+  color: #166b4e;
   font-size: 24rpx;
   font-weight: 900;
 }
@@ -415,10 +423,10 @@ export default {
   min-width: 190rpx;
   height: 54rpx;
   margin: 0 12rpx;
-  border: 2rpx solid #d9e1fb;
+  border: 2rpx solid #dfe8d8;
   border-radius: 12rpx;
   background: #ffffff;
-  color: #24305a;
+  color: #17362f;
   font-size: 24rpx;
   font-weight: 900;
   line-height: 54rpx;
@@ -427,7 +435,7 @@ export default {
 
 .empty {
   padding: 42rpx 0;
-  color: #697597;
+  color: #748078;
   text-align: center;
 }
 

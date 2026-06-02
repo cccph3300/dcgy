@@ -42,6 +42,13 @@
             <text v-if="profitMode" class="detail-profit" :class="{ loss: itemProfit(item) < 0 }">利{{ text.currency }}{{ money(itemProfit(item)) }}</text>
           </view>
         </view>
+        <view v-if="hasOrderAdjustments" class="adjustment-summary">
+          <view v-if="order.adjustmentRemark" class="adjustment-remark">备注：{{ order.adjustmentRemark }}</view>
+          <view v-for="item in order.adjustments" :key="item.id || item.name" class="adjustment-display-row">
+            <text>{{ item.name }}</text>
+            <text>{{ adjustmentSign(item.type) }}{{ text.currency }}{{ money(item.amount) }}</text>
+          </view>
+        </view>
         <view class="total">{{ text.totalAmount }}{{ text.currency }}{{ money(order.totalAmount) }}</view>
         <view v-if="profitMode" class="total profit-total">总利润：{{ text.currency }}{{ money(orderProfit) }}</view>
       </view>
@@ -156,6 +163,30 @@
         </view>
 
         <view v-if="!editForm.items.length" class="empty">{{ text.noItems }}</view>
+        <view class="adjustment-edit">
+          <view class="section-title adjustment-edit-title">备注调整</view>
+          <view class="edit-field adjustment-remark-field">
+            <text>备注</text>
+            <input v-model="editForm.adjustmentRemark" class="input edit-input" placeholder="如路费和退框" />
+          </view>
+          <view v-for="(row, index) in editForm.adjustments" :key="row.key || row.id || index" class="adjustment-edit-row">
+            <view class="adjustment-name-cell">
+              <input v-model="row.name" class="input edit-input adjustment-name-input" placeholder="名称" />
+              <view class="name-quick-actions">
+                <button v-for="name in adjustmentNameOptions" :key="name" class="name-quick" @click="setEditAdjustmentName(index, name)">{{ name }}</button>
+              </view>
+            </view>
+            <picker :range="adjustmentTypeLabels" :value="adjustmentTypeIndex(row.type)" @change="changeEditAdjustmentType(index, $event)">
+              <view class="input edit-input picker-value type-picker">{{ adjustmentSign(row.type) }}</view>
+            </picker>
+            <input v-model="row.amount" class="input edit-input" type="digit" placeholder="金额" />
+            <button class="mini-delete" @click="removeEditAdjustment(index)">删</button>
+          </view>
+          <view class="adjustment-actions">
+            <text v-if="editForm.adjustments.length" class="adjustment-total">调整 {{ editAdjustmentTotal >= 0 ? '+' : '-' }}{{ text.currency }}{{ money(Math.abs(editAdjustmentTotal)) }}</text>
+            <button class="mini-add" @click="addEditAdjustment">+</button>
+          </view>
+        </view>
         <view class="total">{{ text.totalAmount }}{{ text.currency }}{{ money(editTotal) }}</view>
         <view class="edit-actions">
           <button class="soft-button" @click="cancelEdit">{{ text.cancelEdit }}</button>
@@ -171,6 +202,12 @@
 <script>
 import { request, requireLogin } from '../../utils/request'
 import { money, numberText, timeText } from '../../utils/format'
+
+const ADJUSTMENT_NAMES = ['货拉拉', '胶框']
+const ADJUSTMENT_TYPES = [
+  { label: '+', value: 'add' },
+  { label: '-', value: 'subtract' }
+]
 
 const zh = {
   back: '\u8fd4\u56de',
@@ -224,8 +261,11 @@ export default {
         customerName: '',
         createdDate: '',
         createdTime: '',
-        items: []
+        items: [],
+        adjustmentRemark: '',
+        adjustments: []
       },
+      nextAdjustmentKey: 1,
       editCustomerSuggestions: [],
       editCustomerTimer: null,
       goodsList: [],
@@ -251,7 +291,26 @@ export default {
       return this.text.unpaid
     },
     editTotal() {
-      return this.editForm.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+      return Number((this.editGoodsTotal + this.editAdjustmentTotal).toFixed(2))
+    },
+    editGoodsTotal() {
+      return Number(this.editForm.items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0).toFixed(2))
+    },
+    editAdjustmentTotal() {
+      return Number((this.editForm.adjustments || []).reduce((sum, item) => {
+        const amount = Number(item.amount || 0)
+        if (!Number.isFinite(amount) || amount <= 0) return sum
+        return sum + (item.type === 'subtract' ? -amount : amount)
+      }, 0).toFixed(2))
+    },
+    hasOrderAdjustments() {
+      return Boolean(this.order?.adjustmentRemark) || Boolean(this.order?.adjustments?.length)
+    },
+    adjustmentNameOptions() {
+      return ADJUSTMENT_NAMES
+    },
+    adjustmentTypeLabels() {
+      return ADJUSTMENT_TYPES.map(item => item.label)
     },
     filteredGoods() {
       const keyword = this.goodsKeyword.trim()
@@ -302,6 +361,67 @@ export default {
     money,
     numberText,
     timeText,
+    adjustmentNameIndex(name) {
+      return Math.max(ADJUSTMENT_NAMES.indexOf(name), 0)
+    },
+    setEditAdjustmentName(index, name) {
+      const row = this.editForm.adjustments[index]
+      if (!row) return
+      row.name = name
+    },
+    adjustmentTypeIndex(type) {
+      const index = ADJUSTMENT_TYPES.findIndex(item => item.value === type)
+      return index >= 0 ? index : 0
+    },
+    adjustmentSign(type) {
+      return type === 'subtract' ? '-' : '+'
+    },
+    addEditAdjustment() {
+      this.editForm.adjustments.push({
+        key: this.nextAdjustmentKey++,
+        name: '',
+        type: 'add',
+        amount: ''
+      })
+    },
+    removeEditAdjustment(index) {
+      this.editForm.adjustments.splice(index, 1)
+    },
+    changeEditAdjustmentName(index, event) {
+      const row = this.editForm.adjustments[index]
+      if (!row) return
+      row.name = ADJUSTMENT_NAMES[Number(event.detail.value || 0)] || ADJUSTMENT_NAMES[0]
+    },
+    changeEditAdjustmentType(index, event) {
+      const row = this.editForm.adjustments[index]
+      if (!row) return
+      const option = ADJUSTMENT_TYPES[Number(event.detail.value || 0)] || ADJUSTMENT_TYPES[0]
+      row.type = option.value
+    },
+    buildEditAdjustmentsPayload() {
+      return (this.editForm.adjustments || [])
+        .filter(item => item.name || Number(item.amount || 0) > 0)
+        .map(item => ({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          amount: Number(item.amount || 0)
+        }))
+    },
+    validateEditAdjustments() {
+      const invalid = this.buildEditAdjustmentsPayload().some(item => {
+        return !item.name || (item.type !== 'add' && item.type !== 'subtract') || !Number.isFinite(item.amount) || item.amount <= 0
+      })
+      if (invalid) {
+        uni.showToast({ title: '请检查备注调整金额', icon: 'none' })
+        return false
+      }
+      if (this.editTotal < 0) {
+        uni.showToast({ title: '总金额不能小于0', icon: 'none' })
+        return false
+      }
+      return this.validateEditAdjustments()
+    },
     getCustomerClass(name) {
       if ((name || '').trim() === '\u5ba2\u6237') return 'customer-default'
       const colors = ['customer-a', 'customer-b', 'customer-c', 'customer-d', 'customer-e']
@@ -385,6 +505,14 @@ export default {
         customerName: this.order.customerName || '',
         createdDate: this.dateInputText(this.order.createdAt),
         createdTime: this.timeInputText(this.order.createdAt),
+        adjustmentRemark: this.order.adjustmentRemark || '',
+        adjustments: (this.order.adjustments || []).map(item => ({
+          id: item.id,
+          key: this.nextAdjustmentKey++,
+          name: item.name,
+          type: item.type,
+          amount: String(item.amount || '')
+        })),
         items: (this.order.items || []).map(item => ({
           id: item.id,
           goodsId: item.goodsId,
@@ -532,6 +660,8 @@ export default {
           createdDate: this.editForm.createdDate,
           createdTime: this.editForm.createdTime
         } : {}),
+        adjustmentRemark: this.editForm.adjustmentRemark.trim(),
+        adjustments: this.buildEditAdjustmentsPayload(),
         items: this.editForm.items.map(item => ({
           id: item.id,
           goodsId: item.goodsId,
@@ -799,6 +929,31 @@ export default {
   font-size: 34rpx;
 }
 
+.adjustment-summary {
+  margin-top: 14rpx;
+  padding: 14rpx;
+  border-radius: 14rpx;
+  background: #f7fbf3;
+}
+
+.adjustment-remark {
+  margin-bottom: 8rpx;
+  color: #17362f;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.adjustment-display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  min-height: 44rpx;
+  color: #166b4e;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
 .edit-panel {
   padding: 18rpx;
 }
@@ -992,6 +1147,103 @@ export default {
   font-size: 28rpx;
   font-weight: 900;
   text-align: right;
+}
+
+.adjustment-edit {
+  margin-top: 16rpx;
+  padding: 14rpx;
+  border: 2rpx solid #c9dcc9;
+  border-radius: 16rpx;
+  background: #f7fbf3;
+}
+
+.adjustment-edit-title {
+  margin-bottom: 12rpx;
+}
+
+.adjustment-remark-field {
+  margin-bottom: 12rpx;
+}
+
+.adjustment-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) 84rpx minmax(0, 1fr) 60rpx;
+  gap: 10rpx;
+  align-items: start;
+  min-height: 66rpx;
+  margin-top: 10rpx;
+}
+
+.adjustment-name-cell {
+  min-width: 0;
+}
+
+.adjustment-name-input {
+  min-width: 0;
+}
+
+.name-quick-actions {
+  display: flex;
+  gap: 8rpx;
+  margin-top: 8rpx;
+}
+
+.name-quick {
+  width: auto;
+  height: 42rpx;
+  min-height: 42rpx;
+  margin: 0;
+  padding: 0 14rpx;
+  border-radius: 12rpx;
+  background: #e8f6ed;
+  color: #166b4e;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 42rpx;
+}
+
+.name-quick::after {
+  display: none;
+  border: 0;
+}
+
+.type-picker {
+  justify-content: center;
+  padding: 0;
+  color: #166b4e;
+  font-size: 32rpx;
+}
+
+.adjustment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.adjustment-total {
+  color: #166b4e;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.mini-add {
+  width: 64rpx;
+  height: 54rpx;
+  min-height: 54rpx;
+  margin: 0;
+  border-radius: 14rpx;
+  background: #e8f6ed;
+  color: #166b4e;
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 54rpx;
+}
+
+.mini-add::after {
+  display: none;
+  border: 0;
 }
 
 .edit-actions {

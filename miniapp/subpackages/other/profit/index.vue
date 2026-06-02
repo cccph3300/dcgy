@@ -134,7 +134,7 @@ export default {
       return this.summaryData
     },
     orderRows() {
-      return this.orderRowsData.map(row => ({
+      return this.orderRowsData.filter(row => row.source !== 'supermarket').map(row => ({
         ...row,
         time: timeText(row.createdAt)
       }))

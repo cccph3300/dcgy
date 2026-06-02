@@ -10,12 +10,20 @@ type PrintItem = {
   subtotal?: number | string
 }
 
+type PrintAdjustment = {
+  name: string
+  type?: 'add' | 'subtract' | string
+  amount?: number | string
+}
+
 type PrintOrder = {
   orderNo?: string
   customerName?: string
   staffName?: string
   createdAt?: string | Date
   totalAmount?: number | string
+  adjustmentRemark?: string | null
+  adjustments?: PrintAdjustment[]
   items?: PrintItem[]
 }
 
@@ -23,6 +31,8 @@ type DebtPrintOrder = {
   orderNo: string
   createdAt: string | Date
   totalAmount: number | string
+  adjustmentRemark?: string | null
+  adjustments?: PrintAdjustment[]
   items: PrintItem[]
 }
 
@@ -116,6 +126,26 @@ function itemRows(item: PrintItem) {
   ].join('')
 }
 
+function adjustmentRows(order: PrintOrder) {
+  const rows: string[] = []
+  const remark = String(order.adjustmentRemark || '').trim()
+  const adjustments = order.adjustments || []
+
+  if (remark) {
+    rows.push(bigLine(`备注:${remark}`))
+  }
+
+  for (const item of adjustments) {
+    const name = String(item.name || '').trim()
+    const amount = Number(item.amount || 0)
+    if (!name || amount <= 0) continue
+    const sign = item.type === 'subtract' ? '-' : '+'
+    rows.push(bigLine(`${name} ${sign}${receiptNumber(amount)}`))
+  }
+
+  return rows
+}
+
 function formatTime(value?: string | Date) {
   const date = value ? new Date(value) : new Date()
   const realDate = Number.isNaN(date.getTime()) ? new Date() : date
@@ -163,6 +193,7 @@ export function buildXpyunReceipt(order: PrintOrder) {
 
   content.push(
     '--------------------------------<BR>',
+    ...adjustmentRows(order),
     rightBigLine(`合计:${receiptNumber(order.totalAmount || 0)}`),
     footerBlock()
   )
@@ -190,6 +221,7 @@ export function buildXpyunDebtReceipt(debt: DebtPrintData) {
       content.push(itemRows(item))
     }
 
+    content.push(...adjustmentRows(order))
     content.push('--------------------------------<BR>')
   }
 

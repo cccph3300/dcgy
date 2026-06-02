@@ -237,6 +237,24 @@
           }
         },
         {
+          "path": "supermarkets",
+          "style": {
+            "navigationBarTitleText": "超市配送/所有超市"
+          }
+        },
+        {
+          "path": "supermarket-detail",
+          "style": {
+            "navigationBarTitleText": "超市配送/超市订单"
+          }
+        },
+        {
+          "path": "supermarket-profit",
+          "style": {
+            "navigationBarTitleText": "超市配送/超市利润"
+          }
+        },
+        {
           "path": "detail",
           "style": {
             "navigationBarTitleText": "超市配送/超市订单/送货详情"

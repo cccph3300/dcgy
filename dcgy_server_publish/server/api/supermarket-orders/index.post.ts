@@ -2,6 +2,12 @@ import { readBody } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import {
+  buildOrderAdjustments,
+  mapOrderAdjustment,
+  parseOrderAdjustmentRemark,
+  sumOrderAdjustments
+} from '../../utils/orders'
+import {
   assertSupermarketName,
   buildSupermarketItems,
   createSupermarketOrderNo,
@@ -18,8 +24,11 @@ export default defineEventHandler(async (event) => {
 
   return prisma.$transaction(async (tx) => {
     const items = await buildSupermarketItems(tx, body?.items)
+    const adjustments = buildOrderAdjustments(body?.adjustments)
+    const adjustmentRemark = parseOrderAdjustmentRemark(body?.adjustmentRemark ?? body?.remark)
     await deductSupermarketStock(tx, items)
     const totals = summarizeSupermarketItems(items)
+    totals.totalAmount = Number((totals.totalAmount + sumOrderAdjustments(adjustments)).toFixed(2))
 
     const order = await tx.supermarketOrder.create({
       data: {
@@ -27,10 +36,12 @@ export default defineEventHandler(async (event) => {
         supermarketName,
         staffId: staff.id,
         staffName: staff.name,
+        adjustmentRemark,
         ...totals,
-        items: { create: items.map(mapSupermarketItemForCreate) }
+        items: { create: items.map(mapSupermarketItemForCreate) },
+        adjustments: { create: adjustments.map(mapOrderAdjustment) }
       },
-      include: { items: true }
+      include: { items: true, adjustments: true }
     })
 
     return mapSupermarketOrder(order)

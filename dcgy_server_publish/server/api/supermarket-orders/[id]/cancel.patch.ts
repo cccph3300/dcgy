@@ -10,7 +10,10 @@ export default defineEventHandler(async (event) => {
   return prisma.$transaction(async (tx) => {
     const order = await tx.supermarketOrder.findUnique({
       where: { id },
-      include: { items: true }
+      include: {
+        items: true,
+        adjustments: { orderBy: { sortOrder: 'asc' } }
+      }
     })
     if (!order) {
       throw createError({ statusCode: 404, statusMessage: '超市订单不存在' })
@@ -27,7 +30,10 @@ export default defineEventHandler(async (event) => {
         status: 'cancelled',
         cancelledAt: new Date()
       },
-      include: { items: true }
+      include: {
+        items: true,
+        adjustments: { orderBy: { sortOrder: 'asc' } }
+      }
     })
 
     return mapSupermarketOrder(updated)

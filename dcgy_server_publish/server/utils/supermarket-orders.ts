@@ -1,9 +1,10 @@
 import type { Prisma, SupermarketItemType, UnitType } from '@prisma/client'
 import { createError } from 'h3'
 import { assertName, formatDecimal, toMoney, toQuantity } from './number'
+import { formatOrderAdjustment } from './orders'
 
 type Tx = Prisma.TransactionClient
-type SupermarketOrderWithItems = Prisma.SupermarketOrderGetPayload<{ include: { items: true } }>
+type SupermarketOrderWithItems = Prisma.SupermarketOrderGetPayload<{ include: { items: true, adjustments: true } }>
 
 type IncomingSupermarketItem = {
   type: SupermarketItemType
@@ -13,6 +14,7 @@ type IncomingSupermarketItem = {
   weight: number
   price: number
   commission: number
+  costCommission: number | null
   costPrice: number | null
 }
 
@@ -92,6 +94,9 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
     weight: parseWeight(item?.weight),
     price: toMoney(item?.price, '价格'),
     commission: toMoney(item?.commission, '佣金'),
+    costCommission: item?.costCommission === undefined || item?.costCommission === null || item?.costCommission === ''
+      ? null
+      : toMoney(item.costCommission, '成本佣金'),
     costPrice: item?.costPrice === undefined || item?.costPrice === null || item?.costPrice === ''
       ? null
       : toMoney(item.costPrice, '成本价')
@@ -120,7 +125,7 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
       }
       const goodsName = item.goodsName ? assertName(item.goodsName, '商品名称') : goods.name
       const costPrice = item.costPrice ?? Number(goods.costPrice)
-      const costCommission = Number(goods.defaultCommission || 0)
+      const costCommission = item.costCommission ?? Number(goods.defaultCommission || 0)
       const weight = goods.unitType === 'weight' ? item.weight : null
       const amounts = calcItemAmount(goods.unitType, item.quantity, weight, item.price, item.commission, costPrice, costCommission)
       return {
@@ -141,7 +146,7 @@ export async function buildSupermarketItems(tx: Tx, rawItems: unknown): Promise<
 
     const goodsName = assertName(item.goodsName, '商品名称')
     const costPrice = item.costPrice ?? 0
-    const costCommission = 0
+    const costCommission = item.costCommission ?? 0
     const unitType: UnitType = item.weight > 0 ? 'weight' : 'qty'
     const weight = item.weight > 0 ? item.weight : null
     const amounts = calcItemAmount(unitType, item.quantity, weight, item.price, item.commission, costPrice, costCommission)
@@ -226,6 +231,7 @@ export function mapSupermarketOrder(order: SupermarketOrderWithItems) {
     totalCost: formatDecimal(order.totalCost),
     totalCommission: formatDecimal(order.totalCommission),
     totalProfit: formatDecimal(order.totalProfit),
+    adjustmentRemark: order.adjustmentRemark || '',
     cancelledAt: order.cancelledAt,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
@@ -244,7 +250,8 @@ export function mapSupermarketOrder(order: SupermarketOrderWithItems) {
       subtotal: formatDecimal(item.subtotal),
       costAmount: formatDecimal(item.costAmount),
       profit: formatDecimal(item.profit)
-    }))
+    })),
+    adjustments: order.adjustments.map(formatOrderAdjustment)
   }
 }
 
@@ -260,12 +267,15 @@ export function mapSupermarketSheet(order: SupermarketOrderWithItems) {
       quantity: item.quantity,
       weight: item.weight,
       price: item.price,
-      commission: item.commission,
+      commission: roundMoney(Number(item.quantity || 0) * Number(item.commission || 0)),
+      lineCommission: roundMoney(Number(item.quantity || 0) * Number(item.commission || 0)),
       total: item.subtotal,
       type: item.type,
       unitType: item.unitType
     })),
     totalAmount: mapped.totalAmount,
+    adjustmentRemark: mapped.adjustmentRemark,
+    adjustments: mapped.adjustments,
     totalCost: mapped.totalCost,
     totalCommission: mapped.totalCommission,
     totalProfit: mapped.totalProfit,
