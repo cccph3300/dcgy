@@ -66,7 +66,7 @@
 
         <view v-if="activeTab === 'all'" class="range-note">{{ text.oneYearTip }}</view>
 
-        <view v-for="order in visibleOrders" :key="order.id" class="order-card">
+        <view v-for="order in visibleOrders" :key="order.id" class="order-card" @click="openOrderDetail(order)">
           <view class="order-head">
             <view>
               <view class="order-date">{{ dateText(order.createdAt) }}</view>
@@ -77,7 +77,7 @@
                 <view class="order-amount" :class="order.status">¥{{ amountText(order, 'totalAmount', 'amount') }}</view>
                 <view class="order-status" :class="order.status">{{ statusText(order.status) }}</view>
               </view>
-              <button v-if="!isSharedView && order.status === 'unpaid'" class="pay-action" :disabled="payingOrderId === order.id" @click="confirmPayOrder(order)">
+              <button v-if="!isSharedView && order.status === 'unpaid'" class="pay-action" :disabled="payingOrderId === order.id" @click.stop="confirmPayOrder(order)">
                 {{ payingOrderId === order.id ? text.paying : text.payOff }}
               </button>
             </view>
@@ -272,6 +272,10 @@ export default {
     closePartialPayment() {
       this.repayDialogVisible = false
       this.repayAmount = ''
+    },
+    openOrderDetail(order) {
+      if (this.isSharedView || !order?.id) return
+      uni.navigateTo({ url: `/pages/orders/detail?id=${order.id}` })
     },
     async submitPartialPayment() {
       const amount = Number(this.repayAmount)

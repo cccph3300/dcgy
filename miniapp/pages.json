@@ -7,12 +7,6 @@
       }
     },
     {
-      "path": "pages/ai/index",
-      "style": {
-        "navigationBarTitleText": "小东"
-      }
-    },
-    {
       "path": "pages/orders/index",
       "style": {
         "navigationBarTitleText": "订单"
@@ -22,6 +16,12 @@
       "path": "pages/inventory/index",
       "style": {
         "navigationBarTitleText": "其他"
+      }
+    },
+    {
+      "path": "pages/ai/index",
+      "style": {
+        "navigationBarTitleText": "小东"
       }
     },
     {
