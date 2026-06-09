@@ -844,11 +844,13 @@ export default {
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  min-height: 42rpx;
-  padding: 0 14rpx;
-  border-radius: 12rpx;
+  min-height: 84rpx;
+  padding: 0 20rpx;
+  border-radius: 18rpx;
   background: #e8f6ed;
   color: #166b4e;
+  font-size: 48rpx;
+  line-height: 1.1;
 }
 
 .customer-default {
@@ -926,7 +928,8 @@ export default {
 
 .total {
   margin-top: 18rpx;
-  font-size: 34rpx;
+  font-size: 48rpx;
+  line-height: 1.2;
 }
 
 .adjustment-summary {

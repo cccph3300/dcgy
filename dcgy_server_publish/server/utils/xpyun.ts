@@ -84,6 +84,10 @@ function rightBigLine(text: unknown) {
   return `<R><FONT w="1" h="1">${receiptText(text)}</FONT><BR></R>`
 }
 
+function rightTotalLine(text: unknown) {
+  return `<R><FONT w="2" h="2">${receiptText(text)}</FONT><BR></R>`
+}
+
 function titleBlock(subtitle?: string) {
   return [
     '<BR>',
@@ -194,7 +198,7 @@ export function buildXpyunReceipt(order: PrintOrder) {
   content.push(
     '--------------------------------<BR>',
     ...adjustmentRows(order),
-    rightBigLine(`合计:${receiptNumber(order.totalAmount || 0)}`),
+    rightTotalLine(`合计:${receiptNumber(order.totalAmount || 0)}`),
     footerBlock()
   )
   return content.join('')

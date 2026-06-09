@@ -34,11 +34,19 @@
         <view class="section-title goods-title">选择货物</view>
         <input v-model="goodsKeyword" class="input goods-search" placeholder="搜索货物" @input="activeGoods = null" />
       </view>
-      <scroll-view class="goods-scroll" scroll-y :show-scrollbar="true" enhanced>
+      <scroll-view
+        class="goods-scroll"
+        scroll-y
+        :scroll-into-view="goodsScrollIntoView"
+        :show-scrollbar="true"
+        scroll-with-animation
+        enhanced
+      >
         <view class="goods-grid">
           <view
             v-for="(goods, index) in filteredGoods"
             :key="goods.id"
+            :id="goodsAnchorId(goods)"
             class="goods-cell"
             :class="[
               { active: activeGoods && activeGoods.id === goods.id },
@@ -70,7 +78,12 @@
                   <input v-model="form.commission" class="input" type="digit" />
                 </view>
               </view>
-              <button class="soft-button primary" @click="addItem">加入明细 ¥{{ money(lineTotal) }}</button>
+              <view class="panel-actions">
+                <button class="soft-button draft-button" @click="saveDraftItem">加入草稿</button>
+                <button class="soft-button primary add-button" @click="addItem">
+                  {{ editingItemIndex === null ? '加入明细' : '保存明细' }} ¥{{ money(lineTotal) }}
+                </button>
+              </view>
             </view>
           </view>
         </view>
@@ -80,10 +93,10 @@
 
     <view class="soft-card">
       <view class="section-title">本单明细</view>
-      <view v-for="(item, index) in items" :key="index" class="detail-row">
+      <view v-for="(item, index) in items" :key="index" class="detail-row" @click="editItem(index)">
         <text class="detail-text">{{ itemText(item) }}</text>
         <text class="detail-price">¥{{ money(item.subtotal) }}</text>
-        <button class="mini-delete" @click="items.splice(index, 1)">删</button>
+        <button class="mini-delete" @click.stop="removeItem(index)">删</button>
       </view>
       <view v-if="!items.length" class="empty">还没有明细</view>
     </view>
@@ -138,9 +151,11 @@ export default {
       customerSuggestions: [],
       customerTimer: null,
       goodsKeyword: '',
+      goodsScrollIntoView: '',
       goodsList: [],
       activeGoods: null,
       form: { quantity: '1', weight: '', price: '', commission: '' },
+      editingItemIndex: null,
       items: [],
       adjustmentRemark: '',
       adjustments: [],
@@ -192,6 +207,15 @@ export default {
   methods: {
     money,
     numberText,
+    goodsAnchorId(goods) {
+      return `goods-${goods.id}`
+    },
+    scrollToGoods(goods) {
+      this.goodsScrollIntoView = ''
+      this.$nextTick(() => {
+        this.goodsScrollIntoView = this.goodsAnchorId(goods)
+      })
+    },
     adjustmentNameIndex(name) {
       return Math.max(ADJUSTMENT_NAMES.indexOf(name), 0)
     },
@@ -277,9 +301,11 @@ export default {
     toggleGoods(goods) {
       if (this.activeGoods && this.activeGoods.id === goods.id) {
         this.activeGoods = null
+        this.editingItemIndex = null
         return
       }
       this.activeGoods = goods
+      this.editingItemIndex = null
       this.form = {
         quantity: '1',
         weight: '',
@@ -287,50 +313,160 @@ export default {
         commission: String(goods.saleCommission || 0)
       }
     },
-    addItem() {
-      const goods = this.activeGoods
-      if (!goods) return
-      const quantity = Number(this.form.quantity || 0)
-      const weight = goods.unitType === 'weight' ? Number(this.form.weight || 0) : 0
-      const price = Number(this.form.price || 0)
-      const commission = Number(this.form.commission || 0)
-      if (quantity <= 0 || price <= 0) {
-        uni.showToast({ title: '数量和单价必须大于0', icon: 'none' })
-        return
-      }
-      if (goods.unitType === 'weight' && weight <= 0) {
-        uni.showToast({ title: '请填写重量', icon: 'none' })
-        return
-      }
-      const subtotal = Number(this.lineTotal.toFixed(2))
-      const sameItem = this.items.find(item =>
-        item.goodsId === goods.id &&
-        item.unitType === goods.unitType &&
-        Number(item.price) === price &&
-        Number(item.commission || 0) === commission
-      )
-      if (sameItem) {
-        sameItem.quantity = Number((Number(sameItem.quantity || 0) + quantity).toFixed(2))
-        sameItem.weight = goods.unitType === 'weight'
-          ? Number((Number(sameItem.weight || 0) + weight).toFixed(2))
-          : null
-        sameItem.subtotal = Number((Number(sameItem.subtotal || 0) + subtotal).toFixed(2))
-        this.activeGoods = null
-        return
-      }
-      this.items.push({
+    fieldNumber(value) {
+      if (value === '' || value === null || value === undefined) return null
+      const number = Number(value)
+      return Number.isFinite(number) ? number : null
+    },
+    calcItemSubtotal(goods, item) {
+      const quantity = Number(item.quantity || 0)
+      const weight = Number(item.weight || 0)
+      const price = Number(item.price || 0)
+      const commission = Number(item.commission || 0)
+      return goods.unitType === 'weight' && weight > 0
+        ? Number((weight * price + quantity * commission).toFixed(2))
+        : Number((quantity * price + quantity * commission).toFixed(2))
+    },
+    buildItemFromForm(goods) {
+      const quantity = this.fieldNumber(this.form.quantity)
+      const weight = goods.unitType === 'weight' ? this.fieldNumber(this.form.weight) : null
+      const price = this.fieldNumber(this.form.price)
+      const commission = this.fieldNumber(this.form.commission)
+      const item = {
         goodsId: goods.id,
         goodsName: goods.name,
         unitType: goods.unitType,
         quantity,
-        weight: goods.unitType === 'weight' && weight > 0 ? weight : null,
+        weight,
         price,
-        commission,
-        subtotal
+        commission
+      }
+      item.subtotal = this.calcItemSubtotal(goods, item)
+      return item
+    },
+    isItemComplete(item) {
+      return !!item &&
+        item.quantity !== null && item.quantity !== undefined && Number(item.quantity) > 0 &&
+        (item.unitType !== 'weight' || (item.weight !== null && item.weight !== undefined && Number(item.weight) > 0)) &&
+        item.price !== null && item.price !== undefined && Number(item.price) > 0 &&
+        item.commission !== null && item.commission !== undefined && Number(item.commission) >= 0
+    },
+    showItemValidationError(item) {
+      if (!item || item.quantity === null || item.quantity === undefined || Number(item.quantity) <= 0) {
+        uni.showToast({ title: '请填写件数', icon: 'none' })
+        return false
+      }
+      if (item.unitType === 'weight' && (item.weight === null || item.weight === undefined || Number(item.weight) <= 0)) {
+        uni.showToast({ title: '请填写重量', icon: 'none' })
+        return false
+      }
+      if (item.price === null || item.price === undefined || Number(item.price) <= 0) {
+        uni.showToast({ title: '请填写价格', icon: 'none' })
+        return false
+      }
+      if (item.commission === null || item.commission === undefined || Number(item.commission) < 0) {
+        uni.showToast({ title: '请填写售佣', icon: 'none' })
+        return false
+      }
+      return true
+    },
+    saveItem(item, keepDraft) {
+      const goods = this.activeGoods
+      if (!goods) return
+      if (!keepDraft && !this.showItemValidationError(item)) return
+
+      const nextItem = Object.assign({}, item, {
+        subtotal: keepDraft && !this.isItemComplete(item) ? 0 : this.calcItemSubtotal(goods, item),
+        isDraft: keepDraft
       })
+      if (this.editingItemIndex !== null) {
+        this.$set(this.items, this.editingItemIndex, nextItem)
+        this.activeGoods = null
+        this.editingItemIndex = null
+        return
+      }
+
+      const canMerge = !keepDraft && this.showItemValidationError(nextItem)
+      const sameItem = canMerge ? this.items.find(existing =>
+        !existing.isDraft &&
+        existing.goodsId === goods.id &&
+        existing.unitType === goods.unitType &&
+        Number(existing.price) === Number(nextItem.price) &&
+        Number(existing.commission || 0) === Number(nextItem.commission || 0)
+      ) : null
+      if (sameItem) {
+        sameItem.quantity = Number((Number(sameItem.quantity || 0) + Number(nextItem.quantity || 0)).toFixed(2))
+        sameItem.weight = goods.unitType === 'weight'
+          ? Number((Number(sameItem.weight || 0) + Number(nextItem.weight || 0)).toFixed(2))
+          : null
+        sameItem.subtotal = Number((Number(sameItem.subtotal || 0) + Number(nextItem.subtotal || 0)).toFixed(2))
+        this.activeGoods = null
+        return
+      }
+      this.items.push(nextItem)
       this.activeGoods = null
     },
+    addItem() {
+      const goods = this.activeGoods
+      if (!goods) return
+      this.saveItem(this.buildItemFromForm(goods), false)
+    },
+    saveDraftItem() {
+      const goods = this.activeGoods
+      if (!goods) return
+      this.saveItem(this.buildItemFromForm(goods), true)
+    },
+    editItem(index) {
+      const item = this.items[index]
+      if (!item) return
+      let goods = this.goodsList.find(goods => goods.id === item.goodsId)
+      if (!goods) {
+        goods = {
+          id: item.goodsId,
+          name: item.goodsName,
+          unitType: item.unitType,
+          salePrice: item.price,
+          saleCommission: item.commission
+        }
+        this.goodsList.unshift(goods)
+      }
+      this.goodsKeyword = ''
+      this.activeGoods = goods
+      this.editingItemIndex = index
+      this.scrollToGoods(goods)
+      this.form = {
+        quantity: item.quantity === null || item.quantity === undefined ? '' : String(item.quantity),
+        weight: item.weight === null || item.weight === undefined ? '' : String(item.weight),
+        price: item.price === null || item.price === undefined ? '' : String(item.price),
+        commission: item.commission === null || item.commission === undefined ? '' : String(item.commission)
+      }
+    },
+    removeItem(index) {
+      this.items.splice(index, 1)
+      if (this.editingItemIndex === index) {
+        this.activeGoods = null
+        this.editingItemIndex = null
+      } else if (this.editingItemIndex !== null && this.editingItemIndex > index) {
+        this.editingItemIndex -= 1
+      }
+    },
+    validateItems() {
+      const invalidIndex = this.items.findIndex(item => !this.showItemValidationError(item))
+      if (invalidIndex >= 0) {
+        this.editItem(invalidIndex)
+        return false
+      }
+      return true
+    },
     itemText(item) {
+      if (item.isDraft && (
+        item.quantity === null || item.quantity === undefined ||
+        (item.unitType === 'weight' && (item.weight === null || item.weight === undefined)) ||
+        item.price === null || item.price === undefined ||
+        item.commission === null || item.commission === undefined
+      )) {
+        return `${item.goodsName} 草稿待补`
+      }
       const commissionTotal = item.unitType === 'weight'
         ? Number(item.quantity || 0) * Number(item.commission || 0)
         : Number(item.quantity || 0) * Number(item.commission || 0)
@@ -338,13 +474,14 @@ export default {
         ? `${numberText(item.quantity)}件 ${numberText(item.weight)}斤*${money(item.price)}`
         : `${numberText(item.quantity)}件*${money(item.price)}`
       const commission = commissionTotal > 0 ? `+${money(commissionTotal)}` : ''
-      return `${item.goodsName} ${base}${commission}`
+      return `${item.goodsName} ${base}${commission}${item.isDraft ? ' 草稿' : ''}`
     },
     submitOrder() {
       if (!this.items.length) {
         uni.showToast({ title: '请先加入明细', icon: 'none' })
         return
       }
+      if (!this.validateItems()) return
       if (!this.validateAdjustments()) return
       uni.showModal({
         title: '确认出单',
@@ -366,7 +503,16 @@ export default {
           data: {
             customerId: this.selectedCustomerId,
             customerName: this.customerName.trim(),
-            items: this.items,
+            items: this.items.map(item => ({
+              goodsId: item.goodsId,
+              goodsName: item.goodsName,
+              unitType: item.unitType,
+              quantity: Number(item.quantity || 0),
+              weight: item.weight === null || item.weight === undefined ? null : Number(item.weight || 0),
+              price: Number(item.price || 0),
+              commission: Number(item.commission || 0),
+              subtotal: Number(item.subtotal || 0)
+            })),
             adjustmentRemark: this.adjustmentRemark.trim(),
             adjustments: this.buildAdjustmentsPayload()
           }
@@ -407,6 +553,7 @@ export default {
         uni.showToast({ title: '请先加入明细', icon: 'none' })
         return
       }
+      if (!this.validateItems()) return
       if (!this.validateAdjustments()) return
       if (this.printing) return
       this.printing = true
@@ -597,6 +744,27 @@ export default {
   min-width: 0;
   min-height: 64rpx;
   padding: 0 14rpx;
+}
+
+.panel-actions {
+  display: grid;
+  grid-template-columns: 3fr 7fr;
+  gap: 12rpx;
+}
+
+.panel-actions .soft-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.draft-button {
+  background: #eef2ee;
+  color: #52635c;
+}
+
+.add-button {
+  min-width: 0;
 }
 
 .adjustment-card {

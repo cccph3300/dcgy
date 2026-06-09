@@ -35,16 +35,26 @@
           <view
             v-for="market in group.items"
             :key="market.name"
-            class="market-row"
-            @click="openMarket(market)"
+            class="market-swipe"
+            @touchstart="touchMarketStart"
+            @touchend="touchMarketEnd($event, market)"
           >
-            <view class="market-main">
-              <view class="market-name">{{ market.name }}</view>
-              <view class="market-meta">{{ market.unpaidOrderCount }}笔未结订单 · 共{{ market.orderCount }}单</view>
-            </view>
-            <view class="debt-box" :class="{ clear: Number(market.unpaidAmount || 0) <= 0 }">
-              <view class="debt-label">未结</view>
-              <view class="debt-money">¥{{ money(market.unpaidAmount) }}</view>
+            <button class="delete-button" :disabled="deletingMarketName === market.name" @click.stop="confirmDeleteMarket(market)">
+              {{ deletingMarketName === market.name ? '删除中' : '删除' }}
+            </button>
+            <view
+              class="market-row"
+              :class="{ swiped: swipedMarketName === market.name }"
+              @click="handleMarketClick(market)"
+            >
+              <view class="market-main">
+                <view class="market-name">{{ market.name }}</view>
+                <view class="market-meta">{{ market.unpaidOrderCount }}笔未结订单 · 共{{ market.orderCount }}单</view>
+              </view>
+              <view class="debt-box" :class="{ clear: Number(market.unpaidAmount || 0) <= 0 }">
+                <view class="debt-label">未结</view>
+                <view class="debt-money">¥{{ money(market.unpaidAmount) }}</view>
+              </view>
             </view>
           </view>
         </view>
@@ -84,6 +94,9 @@ export default {
       loading: false,
       error: '',
       searchTimer: null,
+      swipedMarketName: '',
+      touchStartX: 0,
+      deletingMarketName: '',
       activeAnchor: '',
       letters: LETTERS
     }
@@ -138,8 +151,56 @@ export default {
         this.activeAnchor = this.anchorId(letter)
       })
     },
+    touchMarketStart(event) {
+      this.touchStartX = event.changedTouches?.[0]?.clientX || 0
+    },
+    touchMarketEnd(event, market) {
+      const endX = event.changedTouches?.[0]?.clientX || 0
+      const diff = endX - this.touchStartX
+      if (diff < -36) {
+        this.swipedMarketName = market.name
+      } else if (diff > 28) {
+        this.swipedMarketName = ''
+      }
+    },
+    handleMarketClick(market) {
+      if (this.swipedMarketName === market.name) {
+        this.swipedMarketName = ''
+        return
+      }
+      this.openMarket(market)
+    },
     openMarket(market) {
       uni.navigateTo({ url: `/subpackages/delivery/supermarket-detail?name=${encodeURIComponent(market.name)}` })
+    },
+    confirmDeleteMarket(market) {
+      uni.showModal({
+        title: '删除超市？',
+        content: `确认删除“${market.name}”？必须先将该超市订单全部删除，才可以删除超市。`,
+        confirmText: '删除',
+        confirmColor: '#d64b3f',
+        success: async (res) => {
+          if (!res.confirm) return
+          await this.deleteMarket(market)
+        }
+      })
+    },
+    async deleteMarket(market) {
+      if (this.deletingMarketName) return
+      this.deletingMarketName = market.name
+      try {
+        await request({
+          url: `/api/supermarkets/by-name?name=${encodeURIComponent(market.name)}`,
+          method: 'DELETE'
+        })
+        uni.showToast({ title: '已删除超市', icon: 'success' })
+        this.swipedMarketName = ''
+        await this.loadMarkets()
+      } catch (err) {
+        uni.showToast({ title: err.message || '删除失败', icon: 'none' })
+      } finally {
+        this.deletingMarketName = ''
+      }
     },
     async loadMarkets() {
       this.loading = true
@@ -247,22 +308,56 @@ export default {
   font-weight: 900;
 }
 
+.market-swipe {
+  position: relative;
+  margin-bottom: 14rpx;
+  border-radius: 18rpx;
+  overflow: hidden;
+}
+
 .market-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18rpx;
   min-height: 116rpx;
-  margin-bottom: 14rpx;
   padding: 18rpx;
   border: 2rpx solid #cdd8fb;
   border-radius: 18rpx;
   background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);
   box-shadow: 0 10rpx 22rpx rgba(52, 73, 140, 0.08);
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+
+.market-row.swiped {
+  transform: translateX(-132rpx);
 }
 
 .market-row:active {
   background: #eef3ff;
+}
+
+.delete-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 124rpx;
+  height: 95%;
+  min-height: 95%;
+  margin: 5rpx;
+  border-radius: 0 18rpx 18rpx 0;
+  background: #d64b3f;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 116rpx;
+}
+
+.delete-button::after {
+  display: none;
 }
 
 .market-main {

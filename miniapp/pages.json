@@ -341,12 +341,6 @@
         "selectedIconPath": "static/tabbar/order-active.png"
       },
       {
-        "pagePath": "pages/ai/index",
-        "text": "小东",
-        "iconPath": "static/tabbar/ai.png",
-        "selectedIconPath": "static/tabbar/ai-active.png"
-      },
-      {
         "pagePath": "pages/orders/index",
         "text": "订单",
         "iconPath": "static/tabbar/orders.png",

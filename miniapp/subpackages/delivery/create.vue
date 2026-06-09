@@ -3,8 +3,31 @@
     <view class="soft-card shop-card">
       <view class="field-row full">
         <text class="field-label">超市</text>
-        <input v-model="marketName" class="input" placeholder="填写超市名称" />
+        <input
+          v-model="marketName"
+          class="input"
+          placeholder="填写超市名称"
+          @input="onMarketInput"
+          @focus="searchMarkets"
+        />
       </view>
+      <scroll-view
+        v-if="marketSuggestions.length"
+        class="market-suggest-float"
+        scroll-y
+        :show-scrollbar="true"
+        enhanced
+      >
+        <view
+          v-for="market in marketSuggestions"
+          :key="market.name"
+          class="market-suggest-item"
+          @click="selectMarket(market)"
+        >
+          <text class="market-suggest-name">{{ market.name }}</text>
+          <text class="market-suggest-meta">{{ market.unpaidOrderCount }}笔未结 · 共{{ market.orderCount }}单</text>
+        </view>
+      </scroll-view>
     </view>
 
     <view class="soft-card add-card">
@@ -144,6 +167,8 @@ export default {
   data() {
     return {
       marketName: '',
+      marketSuggestions: [],
+      marketTimer: null,
       goodsKeyword: '',
       goodsList: [],
       selectedGoods: null,
@@ -208,6 +233,9 @@ export default {
     this.confirmLeave()
     return true
   },
+  onUnload() {
+    if (this.marketTimer) clearTimeout(this.marketTimer)
+  },
   methods: {
     money,
     numberText,
@@ -266,9 +294,34 @@ export default {
     async loadGoods() {
       this.goodsList = await request({ url: '/api/goods' })
     },
+    onMarketInput() {
+      if (this.marketTimer) clearTimeout(this.marketTimer)
+      this.marketTimer = setTimeout(() => this.searchMarkets(), 250)
+    },
+    async searchMarkets() {
+      const keyword = this.marketName.trim()
+      if (!keyword) {
+        this.marketSuggestions = []
+        return
+      }
+      try {
+        const result = await request({
+          url: `/api/supermarkets?q=${encodeURIComponent(keyword)}`,
+          showErrorToast: false
+        })
+        this.marketSuggestions = Array.isArray(result) ? result.slice(0, 8) : []
+      } catch (err) {
+        this.marketSuggestions = []
+      }
+    },
+    selectMarket(market) {
+      this.marketName = market.name
+      this.marketSuggestions = []
+    },
     async loadOrder() {
       const order = await request({ url: `/api/supermarket-orders/${this.id}` })
       this.marketName = order.supermarketName || ''
+      this.marketSuggestions = []
       this.adjustmentRemark = order.adjustmentRemark || ''
       this.adjustments = (order.adjustments || []).map(item => ({
         id: item.id,
@@ -560,6 +613,11 @@ export default {
   box-shadow: 0 12rpx 26rpx rgba(52, 73, 140, 0.09);
 }
 
+.shop-card {
+  position: relative;
+  z-index: 6;
+}
+
 .field-row {
   display: grid;
   grid-template-columns: 68rpx minmax(0, 1fr);
@@ -577,6 +635,44 @@ export default {
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
+}
+
+.market-suggest-float {
+  position: absolute;
+  left: 18rpx;
+  right: 18rpx;
+  top: 92rpx;
+  z-index: 20;
+  max-height: 300rpx;
+  border: 1rpx solid #cdd8fb;
+  border-radius: 16rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 28rpx rgba(52, 73, 140, 0.16);
+}
+
+.market-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  min-height: 70rpx;
+  padding: 12rpx 16rpx;
+  border-bottom: 1rpx solid #edf1ff;
+}
+
+.market-suggest-name {
+  overflow: hidden;
+  color: #1f2f63;
+  font-size: 26rpx;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-suggest-meta {
+  flex: 0 0 auto;
+  color: #697597;
+  font-size: 22rpx;
 }
 
 .adjustment-remark-row {

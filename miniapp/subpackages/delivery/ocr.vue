@@ -3,8 +3,31 @@
     <view class="soft-card shop-card">
       <view class="field-row full">
         <text class="field-label">超市</text>
-        <input v-model="marketName" class="input" placeholder="填写超市名称" />
+        <input
+          v-model="marketName"
+          class="input"
+          placeholder="填写超市名称"
+          @input="onMarketInput"
+          @focus="searchMarkets"
+        />
       </view>
+      <scroll-view
+        v-if="marketSuggestions.length"
+        class="market-suggest-float"
+        scroll-y
+        :show-scrollbar="true"
+        enhanced
+      >
+        <view
+          v-for="market in marketSuggestions"
+          :key="market.name"
+          class="market-suggest-item"
+          @click="selectMarket(market)"
+        >
+          <text class="market-suggest-name">{{ market.name }}</text>
+          <text class="market-suggest-meta">{{ market.unpaidOrderCount }}笔未结 · 共{{ market.orderCount }}单</text>
+        </view>
+      </scroll-view>
     </view>
 
     <view class="soft-card upload-card">
@@ -146,6 +169,8 @@ export default {
   data() {
     return {
       marketName: '',
+      marketSuggestions: [],
+      marketTimer: null,
       imagePath: '',
       ocrText: '',
       items: [],
@@ -190,6 +215,9 @@ export default {
     if (this.allowLeave || !this.hasUnsavedContent()) return false
     this.confirmLeave()
     return true
+  },
+  onUnload() {
+    if (this.marketTimer) clearTimeout(this.marketTimer)
   },
   methods: {
     money,
@@ -248,6 +276,30 @@ export default {
     async loadGoods() {
       this.goodsList = await request({ url: '/api/goods' })
     },
+    onMarketInput() {
+      if (this.marketTimer) clearTimeout(this.marketTimer)
+      this.marketTimer = setTimeout(() => this.searchMarkets(), 250)
+    },
+    async searchMarkets() {
+      const keyword = this.marketName.trim()
+      if (!keyword) {
+        this.marketSuggestions = []
+        return
+      }
+      try {
+        const result = await request({
+          url: `/api/supermarkets?q=${encodeURIComponent(keyword)}`,
+          showErrorToast: false
+        })
+        this.marketSuggestions = Array.isArray(result) ? result.slice(0, 8) : []
+      } catch (err) {
+        this.marketSuggestions = []
+      }
+    },
+    selectMarket(market) {
+      this.marketName = market.name
+      this.marketSuggestions = []
+    },
     unitText(unitType) {
       return unitType === 'weight' ? '按重量' : '按件数'
     },
@@ -302,33 +354,19 @@ export default {
 
       // 微信端使用 base64 走主后端 /api/ocr，避免 uploadFile 在本地和云侧路径不一致。
       // #ifdef MP-WEIXIN
-      wx.getFileSystemManager().readFile({
-        filePath,
-        success: ({ data }) => {
-          const imageBase64 = wx.arrayBufferToBase64(data)
-          request({
-            url: '/api/ocr',
-            method: 'POST',
-            data: {
-              imageBase64,
-              filename: 'ocr.jpg'
-            },
-            timeout: 30000
-          }).then((result) => {
-            this.applyOcrResult(result)
-          }).catch((err) => {
-            uni.showToast({ title: err?.message || '识别接口连接失败', icon: 'none' })
-          }).finally(() => {
-            this.recognizing = false
-            uni.hideLoading()
-          })
-        },
-        fail: () => {
-          uni.showToast({ title: '图片读取失败', icon: 'none' })
+      this.prepareMiniProgramImagePath(filePath)
+        .then((targetPath) => this.readMiniProgramImageBase64(targetPath))
+        .then((imageBase64) => this.submitOcr(imageBase64))
+        .then((result) => {
+          this.applyOcrResult(result)
+        })
+        .catch((err) => {
+          uni.showToast({ title: err?.message || '识别接口连接失败', icon: 'none' })
+        })
+        .finally(() => {
           this.recognizing = false
           uni.hideLoading()
-        }
-      })
+        })
       // #endif
 
       // #ifdef H5
@@ -359,6 +397,50 @@ export default {
           uni.hideLoading()
         })
       // #endif
+    },
+    prepareMiniProgramImagePath(filePath) {
+      return new Promise((resolve) => {
+        if (!uni.compressImage) {
+          resolve(filePath)
+          return
+        }
+
+        uni.compressImage({
+          src: filePath,
+          quality: 80,
+          success: (res) => {
+            resolve(res.tempFilePath || filePath)
+          },
+          fail: () => {
+            resolve(filePath)
+          }
+        })
+      })
+    },
+    readMiniProgramImageBase64(filePath) {
+      return new Promise((resolve, reject) => {
+        const fileSystem = wx?.getFileSystemManager?.()
+        if (!fileSystem) {
+          reject(new Error('图片读取能力不可用'))
+          return
+        }
+
+        fileSystem.readFile({
+          filePath,
+          encoding: 'base64',
+          success: ({ data }) => {
+            const imageBase64 = String(data || '').trim()
+            if (!imageBase64) {
+              reject(new Error('图片读取失败'))
+              return
+            }
+            resolve(imageBase64)
+          },
+          fail: (err) => {
+            reject(new Error(err?.errMsg || '图片读取失败'))
+          }
+        })
+      })
     },
     readH5ImageBase64(filePath, tempFile) {
       const file = tempFile?.file || tempFile
@@ -647,6 +729,11 @@ export default {
   box-shadow: 0 12rpx 26rpx rgba(52, 73, 140, 0.09);
 }
 
+.shop-card {
+  position: relative;
+  z-index: 6;
+}
+
 .field-row {
   display: grid;
   grid-template-columns: 68rpx minmax(0, 1fr);
@@ -664,6 +751,44 @@ export default {
   font-size: 24rpx;
   font-weight: 900;
   text-align: right;
+}
+
+.market-suggest-float {
+  position: absolute;
+  left: 18rpx;
+  right: 18rpx;
+  top: 92rpx;
+  z-index: 20;
+  max-height: 300rpx;
+  border: 1rpx solid #cdd8fb;
+  border-radius: 16rpx;
+  background: #ffffff;
+  box-shadow: 0 12rpx 28rpx rgba(52, 73, 140, 0.16);
+}
+
+.market-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  min-height: 70rpx;
+  padding: 12rpx 16rpx;
+  border-bottom: 1rpx solid #edf1ff;
+}
+
+.market-suggest-name {
+  overflow: hidden;
+  color: #1f2f63;
+  font-size: 26rpx;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-suggest-meta {
+  flex: 0 0 auto;
+  color: #697597;
+  font-size: 22rpx;
 }
 
 .adjustment-remark-row {

@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   const date = String(query.date ?? todayInChina())
   const customer = String(query.customer ?? '').trim()
   const customerId = Number(query.customerId || 0)
+  const status = String(query.status ?? '').trim()
   const limit = Math.min(Math.max(Number(query.limit || 100), 1), 300)
   const hasPagination = query.page !== undefined || query.pageSize !== undefined
   const page = Math.max(Number(query.page || 1), 1)
@@ -20,7 +21,8 @@ export default defineEventHandler(async (event) => {
       ? { customerId }
       : customer
         ? { customerName: { contains: customer } }
-        : {})
+        : {}),
+    ...(status === 'unpaid' || status === 'paid' || status === 'cancelled' ? { status } : {})
   }
 
   if (String(query.mode || '') === 'range' || date === 'range') {

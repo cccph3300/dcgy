@@ -26,6 +26,21 @@
       </view>
     </view>
 
+    <view class="module-section ai-section">
+      <view class="section-head">
+        <view class="section-title">小东小东</view>
+        <view class="section-note">小东助手和智能处理</view>
+      </view>
+      <view
+        class="module-card ai-card"
+        @click="openModule(aiModule.url)"
+      >
+        <view class="module-icon ai-icon"></view>
+        <view class="module-title">{{ aiModule.title }}</view>
+        <view class="module-desc">{{ aiModule.desc }}</view>
+      </view>
+    </view>
+
     <view class="module-section retail-section">
       <view class="section-head">
         <view class="section-title">零售模块</view>
@@ -53,6 +68,11 @@ import { clearSession, requireLogin } from '../../utils/request'
 export default {
   data() {
     return {
+      aiModule: {
+        title: '小东',
+        desc: '小东助手、语音问答和经营数据处理',
+        url: '/pages/ai/index'
+      },
       retailModule: {
         title: '零售',
         desc: '商品上传、商品列表、零售点单和记录',
@@ -657,6 +677,51 @@ export default {
   border-radius: 6rpx;
   background: #ffffff;
   box-shadow: 0 12rpx 0 #ffffff;
+}
+
+.ai-section {
+  padding-top: 8rpx;
+}
+
+.ai-section .section-head::before {
+  background: #4d6ed8;
+}
+
+.ai-section .section-title {
+  color: #1f2f63;
+}
+
+.ai-section .section-note {
+  color: #66749a;
+}
+
+.ai-card {
+  min-height: 178rpx;
+  border-color: #cdd8fb;
+  background: linear-gradient(145deg, #ffffff 0%, #edf1ff 100%);
+}
+
+.ai-icon {
+  background: #4d6ed8;
+}
+
+.ai-icon::before {
+  left: 14rpx;
+  top: 14rpx;
+  width: 34rpx;
+  height: 34rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 50%;
+}
+
+.ai-icon::after {
+  left: 20rpx;
+  top: 24rpx;
+  width: 22rpx;
+  height: 10rpx;
+  border-radius: 10rpx;
+  background: #ffffff;
+  box-shadow: -5rpx 18rpx 0 -3rpx #ffffff, 20rpx 18rpx 0 -3rpx #ffffff;
 }
 
 .retail-section {

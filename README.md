@@ -24,16 +24,66 @@
 
 ## 后端更新
 
+原则：
+
+- 先确认 `git pull` 成功，再构建和重启。
+- 如果 `git pull` 报本地文件会被覆盖，不要继续 `npm run build`，否则构建的还是旧代码。
+- 服务器上的临时改动先备份，再还原或 stash，不能直接覆盖不明改动。
+
+### 1. 拉取代码
+
 ```bash
 cd /www/wwwroot/dcgy_repo/dcgy
-git pull
+git status --short --branch
+git pull --ff-only
+```
 
+正常情况应该能直接拉取成功。
+
+如果看到类似下面的提示，说明服务器有本地改动挡住了更新：
+
+```text
+Your local changes to the following files would be overwritten by merge
+Aborting
+```
+
+先备份并暂存本地改动，再重新拉取：
+
+```bash
+cd /www/wwwroot/dcgy_repo/dcgy
+
+BACKUP=/root/dcgy-backup-$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BACKUP"
+git status --short > "$BACKUP/git-status.txt"
+
+git stash push -u -m "server-before-pull-$(date +%Y%m%d-%H%M%S)"
+git pull --ff-only
+```
+
+如果只是不需要保留的单个文件改动，也可以先确认已备份，再还原指定文件：
+
+```bash
+git restore --source=HEAD --staged --worktree dcgy_server_publish/prisma/schema.prisma
+git pull --ff-only
+```
+
+### 2. 构建后端
+
+```bash
 cd dcgy_server_publish
 npm install
 npm run build
 npm run db:apply:order-adjustments
 npm run db:apply:supermarket-order-adjustments
 npm run db:generate
+```
+
+不要在生产库使用 `prisma db push` 代替迁移 SQL。
+
+### 3. 同步运行目录并重启
+
+```bash
+cd /www/wwwroot/dcgy_repo/dcgy/dcgy_server_publish
 
 rsync -a --delete \
   .output \
@@ -49,8 +99,6 @@ pm2 restart dcgy --update-env
 pm2 save
 ```
 
-不要在生产库使用 `prisma db push` 代替迁移 SQL。
-
 健康检查：
 
 ```bash
@@ -59,6 +107,23 @@ curl http://43.136.124.239/api/health
 ```
 
 第一个不通，查 PM2 后端；第一个通、第二个不通，查 Nginx `/api/` 代理。
+
+如果某个新接口本地正常、服务器报 `Cannot find any route matching`，优先检查服务器是否拉到新代码：
+
+```bash
+cd /www/wwwroot/dcgy_repo/dcgy
+git status --short --branch
+git log -1 --oneline
+```
+
+再检查运行目录的接口是否已经进入构建产物：
+
+```bash
+grep -n "route: '/api/接口路径'" /www/wwwroot/dcgy/.output/server/chunks/_/nitro.mjs
+curl -i http://127.0.0.1:3000/api/接口路径
+```
+
+返回 `401` 或业务数据，说明接口存在；返回 `Cannot find any route matching`，说明运行中的后端包还是旧的。
 
 ## H5 更新
 
