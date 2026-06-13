@@ -25,6 +25,9 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await prisma.supplier.delete({ where: { id } })
+  await prisma.$transaction(async (tx) => {
+    await tx.supplierPaymentRecord.deleteMany({ where: { supplierId: id } })
+    await tx.supplier.delete({ where: { id } })
+  })
   return { ok: true }
 })
