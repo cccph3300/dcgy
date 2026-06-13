@@ -1,5 +1,6 @@
 import { createError, readBody } from 'h3'
 import { requireStaff } from '../../utils/auth'
+import { normalizeBase64 } from '../../utils/base64'
 import { createTencentJsonHeaders } from '../../utils/tencent-sign'
 
 const TENCENT_ASR_HOST = 'asr.tencentcloudapi.com'
@@ -30,11 +31,6 @@ const SUPPORTED_VOICE_FORMATS = new Set([
   'aac',
   'amr'
 ])
-
-function normalizeBase64(value: string) {
-  const match = value.match(/^data:[^;]+;base64,(.+)$/)
-  return (match ? match[1] : value).replace(/\s/g, '')
-}
 
 function decodeAudioData(base64: string) {
   const normalized = normalizeBase64(base64)

@@ -221,13 +221,26 @@ export function mapSupermarketItemForCreate(item: BuiltSupermarketItem) {
 }
 
 export function mapSupermarketOrder(order: SupermarketOrderWithItems) {
+  const totalAmount = formatDecimal(order.totalAmount)
+  const partialPayment = order.status === 'paid'
+    ? totalAmount
+    : order.status === 'active'
+      ? formatDecimal(Math.min(Number(order.partialPayment || 0), totalAmount))
+      : 0
+  const unpaidAmount = order.status === 'active'
+    ? formatDecimal(Math.max(totalAmount - partialPayment, 0))
+    : 0
+
   return {
     id: order.id,
     orderNo: order.orderNo,
     supermarketName: order.supermarketName,
     staffName: order.staffName,
     status: order.status,
-    totalAmount: formatDecimal(order.totalAmount),
+    totalAmount,
+    partialPayment,
+    paidAmount: partialPayment,
+    unpaidAmount,
     totalCost: formatDecimal(order.totalCost),
     totalCommission: formatDecimal(order.totalCommission),
     totalProfit: formatDecimal(order.totalProfit),

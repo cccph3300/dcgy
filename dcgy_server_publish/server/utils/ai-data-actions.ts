@@ -1497,7 +1497,7 @@ async function answerDebtQuestion(plan: AiStructuredIntent): Promise<AiDataResul
     ? await prisma.order.groupBy({
       by: ['customerId'],
       where: { customerId: { in: customerIds }, status: 'unpaid' },
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, partialPayment: true },
       _count: { _all: true }
     })
     : []
@@ -1562,7 +1562,9 @@ async function answerSupplierDebtQuestion(plan: AiStructuredIntent, content = ''
   const allRows = debts.map((debt) => {
     const supplier = supplierMap.get(debt.supplierId)
     const totalDebt = Number(debt._sum.totalAmount || 0)
-    const partialPayment = Math.min(Number(supplier?.partialPayment || 0), totalDebt)
+    const allocatedPartialPayment = Math.min(Number(debt._sum.partialPayment || 0), totalDebt)
+    const availablePartialPayment = Math.min(Number(supplier?.partialPayment || 0), Math.max(totalDebt - allocatedPartialPayment, 0))
+    const partialPayment = Math.min(allocatedPartialPayment + availablePartialPayment, totalDebt)
     const unpaidAmount = Math.max(totalDebt - partialPayment, 0)
     return {
       supplierName: supplier?.name || '',

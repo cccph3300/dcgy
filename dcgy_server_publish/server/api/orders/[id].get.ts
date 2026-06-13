@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
+      customer: { select: { partialPayment: true } },
       items: true,
       adjustments: { orderBy: { sortOrder: 'asc' } }
     }
@@ -18,6 +19,19 @@ export default defineEventHandler(async (event) => {
   if (!order) {
     throw createError({ statusCode: 404, statusMessage: '订单不存在' })
   }
+
+  const totalAmount = formatDecimal(order.totalAmount)
+  const partialPayment = order.status === 'paid'
+    ? totalAmount
+    : order.status === 'unpaid'
+      ? formatDecimal(Math.min(Number(order.partialPayment || 0), totalAmount))
+      : 0
+  const unpaidAmount = order.status === 'unpaid'
+    ? formatDecimal(Math.max(totalAmount - partialPayment, 0))
+    : 0
+  const availablePartialPayment = order.status === 'unpaid'
+    ? formatDecimal(order.customer?.partialPayment || 0)
+    : 0
 
   return {
     id: order.id,
@@ -28,7 +42,11 @@ export default defineEventHandler(async (event) => {
     status: order.status,
     goodsAmount: formatDecimal(order.goodsAmount),
     commission: formatDecimal(order.commission),
-    totalAmount: formatDecimal(order.totalAmount),
+    totalAmount,
+    partialPayment,
+    paidAmount: partialPayment,
+    unpaidAmount,
+    availablePartialPayment,
     profitAmount: formatDecimal(order.profitAmount),
     adjustmentRemark: order.adjustmentRemark || '',
     createdAt: order.createdAt,

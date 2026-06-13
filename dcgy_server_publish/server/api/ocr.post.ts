@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'node:crypto'
 import { createError, getHeader, readBody, readMultipartFormData } from 'h3'
 import type { H3Event } from 'h3'
+import { normalizeBase64 } from '../utils/base64'
 
 const TENCENT_OCR_HOST = 'ocr.tencentcloudapi.com'
 const TENCENT_OCR_ENDPOINT = `https://${TENCENT_OCR_HOST}`
@@ -57,11 +58,6 @@ function sha256(value: string) {
 
 function hmacSha256(key: string | Buffer, value: string) {
   return createHmac('sha256', key).update(value).digest()
-}
-
-function normalizeBase64(value: string) {
-  const match = value.match(/^data:[^;]+;base64,(.+)$/)
-  return (match ? match[1] : value).replace(/\s/g, '')
 }
 
 async function readImageBase64(event: H3Event) {

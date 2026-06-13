@@ -29,6 +29,9 @@ model StaffUser {
   createdAt         DateTime           @default(now()) @map("created_at")
   orders            Order[]
   printRecords      PrintRecord[]
+  customerPaymentRecords CustomerPaymentRecord[]
+  supplierPaymentRecords SupplierPaymentRecord[]
+  supermarketPaymentRecords SupermarketPaymentRecord[]
   retailOrders      RetailOrder[]
   retailProducts    RetailProduct[]
   sessions          StaffSession[]
@@ -79,6 +82,7 @@ model Customer {
   partialPayment Decimal  @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
   totalDebt      Decimal  @default(0.00) @map("total_debt") @db.Decimal(10, 2)
   orders         Order[]
+  paymentRecords CustomerPaymentRecord[]
 
   @@map("customers")
 }
@@ -90,8 +94,20 @@ model Supplier {
   partialPayment Decimal         @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
   totalDebt      Decimal         @default(0.00) @map("total_debt") @db.Decimal(10, 2)
   entries        SupplierEntry[]
+  paymentRecords SupplierPaymentRecord[]
 
   @@map("suppliers")
+}
+
+model SupermarketAccount {
+  id             Int                        @id @default(autoincrement())
+  name           String                     @unique @db.VarChar(80)
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  partialPayment Decimal                    @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
+  totalDebt      Decimal                    @default(0.00) @map("total_debt") @db.Decimal(10, 2)
+  paymentRecords SupermarketPaymentRecord[]
+
+  @@map("supermarket_accounts")
 }
 
 model SupplierEntry {
@@ -107,6 +123,7 @@ model SupplierEntry {
   quantity        Decimal                @db.Decimal(10, 2)
   weight          Decimal?               @db.Decimal(10, 2)
   totalAmount     Decimal                @map("total_amount") @db.Decimal(10, 2)
+  partialPayment  Decimal                @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
   totalCommission Decimal                @default(0.00) @map("total_commission") @db.Decimal(10, 2)
   costPrice       Decimal                @map("cost_price") @db.Decimal(10, 2)
   commission      Decimal                @default(0.00) @db.Decimal(10, 2)
@@ -120,6 +137,7 @@ model SupplierEntry {
   supplier        Supplier               @relation(fields: [supplierId], references: [id])
   staff           StaffUser              @relation(fields: [staffId], references: [id])
   goods           Goods?                 @relation(fields: [goodsId], references: [id])
+  paymentRecords  SupplierPaymentRecord[]
 
   @@index([createdAt])
   @@index([supplierId])
@@ -140,6 +158,7 @@ model Order {
   goodsAmount  Decimal     @map("goods_amount") @db.Decimal(10, 2)
   commission   Decimal     @db.Decimal(10, 2)
   totalAmount  Decimal     @map("total_amount") @db.Decimal(10, 2)
+  partialPayment Decimal   @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
   status       OrderStatus @default(unpaid)
   paidAt       DateTime?   @map("paid_at")
   createdAt    DateTime    @default(now()) @map("created_at")
@@ -148,6 +167,7 @@ model Order {
   adjustmentRemark String? @map("adjustment_remark") @db.VarChar(100)
   items        OrderItem[]
   adjustments  OrderAdjustment[]
+  paymentRecords CustomerPaymentRecord[]
   customer     Customer    @relation(fields: [customerId], references: [id])
   staff        StaffUser   @relation(fields: [staffId], references: [id])
 
@@ -201,16 +221,19 @@ model SupermarketOrder {
   staffId         Int                    @map("staff_id")
   staffName       String                 @map("staff_name") @db.VarChar(40)
   totalAmount     Decimal                @map("total_amount") @db.Decimal(10, 2)
+  partialPayment  Decimal                @default(0.00) @map("partial_payment") @db.Decimal(10, 2)
   totalCost       Decimal                @map("total_cost") @db.Decimal(10, 2)
   totalCommission Decimal                @map("total_commission") @db.Decimal(10, 2)
   totalProfit     Decimal                @map("total_profit") @db.Decimal(10, 2)
   status          SupermarketOrderStatus @default(active)
+  paidAt          DateTime?              @map("paid_at")
   cancelledAt     DateTime?              @map("cancelled_at")
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
   adjustmentRemark String?               @map("adjustment_remark") @db.VarChar(100)
   items           SupermarketOrderItem[]
   adjustments     SupermarketOrderAdjustment[]
+  paymentRecords  SupermarketPaymentRecord[]
   staff           StaffUser              @relation(fields: [staffId], references: [id])
 
   @@index([createdAt])
@@ -282,6 +305,75 @@ model PrintRecord {
   @@index([orderNo])
   @@index([customerId])
   @@map("print_records")
+}
+
+model CustomerPaymentRecord {
+  id             Int                   @id @default(autoincrement())
+  customerId     Int                   @map("customer_id")
+  customerName   String                @map("customer_name") @db.VarChar(50)
+  staffId        Int                   @map("staff_id")
+  staffName      String                @map("staff_name") @db.VarChar(40)
+  orderId        Int?                  @map("order_id")
+  orderNo        String?               @map("order_no") @db.VarChar(24)
+  orderCreatedAt DateTime?             @map("order_created_at")
+  action         CustomerPaymentAction
+  amount         Decimal               @db.Decimal(10, 2)
+  unpaidAmount   Decimal               @default(0.00) @map("unpaid_amount") @db.Decimal(10, 2)
+  createdAt      DateTime              @default(now()) @map("created_at")
+  customer       Customer              @relation(fields: [customerId], references: [id])
+  staff          StaffUser             @relation(fields: [staffId], references: [id])
+  order          Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([staffId])
+  @@index([orderId])
+  @@map("customer_payment_records")
+}
+
+model SupplierPaymentRecord {
+  id             Int                   @id @default(autoincrement())
+  supplierId     Int                   @map("supplier_id")
+  supplierName   String                @map("supplier_name") @db.VarChar(80)
+  staffId        Int                   @map("staff_id")
+  staffName      String                @map("staff_name") @db.VarChar(40)
+  entryId        Int?                  @map("entry_id")
+  entryNo        String?               @map("entry_no") @db.VarChar(24)
+  entryCreatedAt DateTime?             @map("entry_created_at")
+  action         SupplierPaymentAction
+  amount         Decimal               @db.Decimal(10, 2)
+  unpaidAmount   Decimal               @default(0.00) @map("unpaid_amount") @db.Decimal(10, 2)
+  createdAt      DateTime              @default(now()) @map("created_at")
+  supplier       Supplier              @relation(fields: [supplierId], references: [id])
+  staff          StaffUser             @relation(fields: [staffId], references: [id])
+  entry          SupplierEntry?        @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([supplierId, createdAt])
+  @@index([staffId])
+  @@index([entryId])
+  @@map("supplier_payment_records")
+}
+
+model SupermarketPaymentRecord {
+  id                   Int                       @id @default(autoincrement())
+  supermarketAccountId Int                       @map("supermarket_account_id")
+  supermarketName      String                    @map("supermarket_name") @db.VarChar(80)
+  staffId              Int                       @map("staff_id")
+  staffName            String                    @map("staff_name") @db.VarChar(40)
+  orderId              Int?                      @map("order_id")
+  orderNo              String?                   @map("order_no") @db.VarChar(24)
+  orderCreatedAt       DateTime?                 @map("order_created_at")
+  action               SupermarketPaymentAction
+  amount               Decimal                   @db.Decimal(10, 2)
+  unpaidAmount         Decimal                   @default(0.00) @map("unpaid_amount") @db.Decimal(10, 2)
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  supermarket          SupermarketAccount        @relation(fields: [supermarketAccountId], references: [id])
+  staff                StaffUser                 @relation(fields: [staffId], references: [id])
+  order                SupermarketOrder?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([supermarketAccountId, createdAt], map: "supermarket_payment_records_account_id_created_at_idx")
+  @@index([staffId], map: "supermarket_payment_records_staff_id_idx")
+  @@index([orderId], map: "supermarket_payment_records_order_id_idx")
+  @@map("supermarket_payment_records")
 }
 
 model RetailProduct {
@@ -407,6 +499,24 @@ enum PrintRecordType {
 enum PrintRecordStatus {
   success
   failed
+}
+
+enum CustomerPaymentAction {
+  customer_partial_payment
+  order_partial_payment
+  order_pay_off
+}
+
+enum SupplierPaymentAction {
+  supplier_partial_payment
+  entry_partial_payment
+  entry_pay_off
+}
+
+enum SupermarketPaymentAction {
+  supermarket_partial_payment
+  order_partial_payment
+  order_pay_off
 }
 
 enum RetailProductSource {

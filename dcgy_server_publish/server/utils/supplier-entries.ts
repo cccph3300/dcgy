@@ -141,32 +141,57 @@ export async function upsertSupplierStockGoods(tx: Tx, entry: ReturnType<typeof 
 }
 
 export async function recalculateSupplierDebt(supplierId: number, tx: PrismaExecutor = prisma) {
-  const result = await tx.supplierEntry.aggregate({
+  const entries = await tx.supplierEntry.findMany({
     where: {
       supplierId,
       status: 'unpaid'
     },
-    _sum: { totalAmount: true }
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' }
+    ],
+    select: {
+      id: true,
+      totalAmount: true,
+      partialPayment: true
+    }
   })
-  const totalDebt = formatDecimal(result._sum.totalAmount || 0)
+  const totalDebt = formatDecimal(entries.reduce((sum, entry) => sum + Number(entry.totalAmount || 0), 0))
   const supplier = await tx.supplier.findUnique({
     where: { id: supplierId },
     select: { partialPayment: true }
   })
   if (!supplier) return totalDebt
 
-  const partialPayment = Math.min(formatDecimal(supplier.partialPayment || 0), totalDebt)
+  let allocatedPartialPayment = 0
+  let availablePartialPayment = formatDecimal(supplier.partialPayment || 0)
+  for (const entry of entries) {
+    const totalAmount = formatDecimal(entry.totalAmount || 0)
+    const currentPartialPayment = formatDecimal(entry.partialPayment || 0)
+    const cappedPartialPayment = formatDecimal(Math.min(currentPartialPayment, totalAmount))
+    if (cappedPartialPayment !== formatDecimal(entry.partialPayment || 0)) {
+      await tx.supplierEntry.update({
+        where: { id: entry.id },
+        data: { partialPayment: cappedPartialPayment }
+      })
+      availablePartialPayment = formatDecimal(availablePartialPayment + currentPartialPayment - cappedPartialPayment)
+    }
+    allocatedPartialPayment += cappedPartialPayment
+  }
+  allocatedPartialPayment = formatDecimal(allocatedPartialPayment)
+  availablePartialPayment = Math.min(availablePartialPayment, Math.max(totalDebt - allocatedPartialPayment, 0))
+
   await tx.supplier.update({
     where: { id: supplierId },
     data: {
       totalDebt,
-      partialPayment
+      partialPayment: availablePartialPayment
     }
   })
   return totalDebt
 }
 
-export async function applyPaidEntryToSupplier(entry: { supplierId: number, totalAmount: unknown }, tx: PrismaExecutor = prisma) {
+export async function applyPaidEntryToSupplier(entry: { supplierId: number }, tx: PrismaExecutor = prisma) {
   const supplier = await tx.supplier.findUnique({
     where: { id: entry.supplierId },
     select: { partialPayment: true }
@@ -174,12 +199,7 @@ export async function applyPaidEntryToSupplier(entry: { supplierId: number, tota
   if (!supplier) {
     throw createError({ statusCode: 400, statusMessage: '货主不存在' })
   }
-
-  const nextPartialPayment = Math.max(formatDecimal(supplier.partialPayment || 0) - formatDecimal(entry.totalAmount || 0), 0)
-  await tx.supplier.update({
-    where: { id: entry.supplierId },
-    data: { partialPayment: nextPartialPayment }
-  })
+  return supplier
 }
 
 export function mapSupplierEntry(entry: SupplierEntry | SupplierEntryWithRelations) {
@@ -195,6 +215,9 @@ export function mapSupplierEntry(entry: SupplierEntry | SupplierEntryWithRelatio
     quantity: formatDecimal(entry.quantity),
     weight: entry.weight ? formatDecimal(entry.weight) : null,
     totalAmount: formatDecimal(entry.totalAmount),
+    partialPayment: formatDecimal(entry.partialPayment || 0),
+    paidAmount: formatDecimal(entry.partialPayment || 0),
+    unpaidAmount: entry.status === 'unpaid' ? formatDecimal(Math.max(Number(entry.totalAmount || 0) - Number(entry.partialPayment || 0), 0)) : 0,
     totalCommission: formatDecimal(entry.totalCommission),
     costPrice: formatDecimal(entry.costPrice),
     commission: formatDecimal(entry.commission),

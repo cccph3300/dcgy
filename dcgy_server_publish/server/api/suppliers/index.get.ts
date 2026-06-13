@@ -2,53 +2,7 @@ import { getQuery } from 'h3'
 import { requireStaff } from '../../utils/auth'
 import { prisma } from '../../utils/prisma'
 import { formatDecimal } from '../../utils/number'
-
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-const SORT_LETTERS = `${LETTERS}#`
-const PINYIN_BOUNDARIES = [
-  ['A', '阿'],
-  ['B', '芭'],
-  ['C', '擦'],
-  ['D', '搭'],
-  ['E', '蛾'],
-  ['F', '发'],
-  ['G', '噶'],
-  ['H', '哈'],
-  ['J', '击'],
-  ['K', '喀'],
-  ['L', '垃'],
-  ['M', '妈'],
-  ['N', '拿'],
-  ['O', '哦'],
-  ['P', '啪'],
-  ['Q', '期'],
-  ['R', '然'],
-  ['S', '撒'],
-  ['T', '塌'],
-  ['W', '挖'],
-  ['X', '昔'],
-  ['Y', '压'],
-  ['Z', '匝']
-] as const
-
-function getChineseInitial(char: string) {
-  const code = char.charCodeAt(0)
-  if (code < 0x4e00 || code > 0x9fa5) return ''
-  for (let index = PINYIN_BOUNDARIES.length - 1; index >= 0; index -= 1) {
-    const [letter, boundary] = PINYIN_BOUNDARIES[index]
-    if (char.localeCompare(boundary, 'zh-Hans-CN-u-co-pinyin') >= 0) return letter
-  }
-  return ''
-}
-
-function getInitial(name: string) {
-  const first = String(name || '').trim().charAt(0)
-  if (!first) return '#'
-  const upper = first.toUpperCase()
-  if (/^[A-Z]$/.test(upper)) return upper
-  const initial = getChineseInitial(first)
-  return initial && LETTERS.includes(initial) ? initial : '#'
-}
+import { getInitial, SORT_INITIALS } from '../../utils/initial'
 
 export default defineEventHandler(async (event) => {
   await requireStaff(event)
@@ -71,7 +25,7 @@ export default defineEventHandler(async (event) => {
           supplierId: { in: supplierIds },
           status: 'unpaid'
         },
-        _sum: { totalAmount: true },
+        _sum: { totalAmount: true, partialPayment: true },
         _count: { _all: true }
       })
     : []
@@ -81,7 +35,9 @@ export default defineEventHandler(async (event) => {
     .map((supplier) => {
       const debt = debtMap.get(supplier.id)
       const totalDebt = formatDecimal(debt?._sum.totalAmount || 0)
-      const partialPayment = Math.min(formatDecimal(supplier.partialPayment || 0), totalDebt)
+      const allocatedPartialPayment = Math.min(formatDecimal(debt?._sum.partialPayment || 0), totalDebt)
+      const availablePartialPayment = Math.min(formatDecimal(supplier.partialPayment || 0), Math.max(totalDebt - allocatedPartialPayment, 0))
+      const partialPayment = Math.min(allocatedPartialPayment + availablePartialPayment, totalDebt)
       return {
         id: supplier.id,
         name: supplier.name,
@@ -89,11 +45,13 @@ export default defineEventHandler(async (event) => {
         debtAmount: formatDecimal(Math.max(totalDebt - partialPayment, 0)),
         totalDebt,
         partialPayment: formatDecimal(partialPayment),
+        allocatedPartialPayment: formatDecimal(allocatedPartialPayment),
+        availablePartialPayment: formatDecimal(availablePartialPayment),
         unpaidEntryCount: debt?._count._all || 0
       }
     })
     .sort((left, right) => {
-      const initialCompare = SORT_LETTERS.indexOf(left.initial) - SORT_LETTERS.indexOf(right.initial)
+      const initialCompare = SORT_INITIALS.indexOf(left.initial) - SORT_INITIALS.indexOf(right.initial)
       if (initialCompare !== 0) return initialCompare
       return left.name.localeCompare(right.name, 'zh-CN')
     })

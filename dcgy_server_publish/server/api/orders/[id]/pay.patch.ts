@@ -2,9 +2,11 @@ import { createError } from 'h3'
 import { requireStaff } from '../../../utils/auth'
 import { prisma } from '../../../utils/prisma'
 import { applyPaidOrderToCustomer, recalculateCustomerDebt } from '../../../utils/customer-payments'
+import { formatDecimal } from '../../../utils/number'
+import { createCustomerPaymentRecord, getCustomerUnpaidAmount } from '../../../utils/customer-payment-records'
 
 export default defineEventHandler(async (event) => {
-  await requireStaff(event)
+  const staff = await requireStaff(event)
   const id = Number(event.context.params?.id)
   const order = await prisma.order.findUnique({ where: { id } })
   if (!order) {
@@ -21,6 +23,16 @@ export default defineEventHandler(async (event) => {
       data: { status: 'paid', paidAt: new Date() }
     })
     await recalculateCustomerDebt(order.customerId, tx)
+    const unpaidAmount = await getCustomerUnpaidAmount(order.customerId, tx)
+    await createCustomerPaymentRecord({
+      tx,
+      customer: { id: order.customerId, name: order.customerName },
+      staff,
+      action: 'order_pay_off',
+      amount: formatDecimal(Number(order.totalAmount || 0) - Number(order.partialPayment || 0)),
+      unpaidAmount,
+      order
+    })
     return paidOrder
   })
 })

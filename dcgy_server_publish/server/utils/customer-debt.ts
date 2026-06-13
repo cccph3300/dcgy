@@ -9,13 +9,27 @@ type CustomerDebtOptions = {
   includeAllOrders?: boolean
 }
 
+function getOrderPartialPayment(order: OrderWithItems) {
+  if (order.status === 'paid') return formatDecimal(order.totalAmount)
+  if (order.status !== 'unpaid') return 0
+  return formatDecimal(Math.min(Number(order.totalAmount || 0), Number(order.partialPayment || 0)))
+}
+
 function mapOrder(order: OrderWithItems) {
+  const partialPayment = getOrderPartialPayment(order)
+  const unpaidAmount = order.status === 'unpaid'
+    ? formatDecimal(Math.max(Number(order.totalAmount || 0) - partialPayment, 0))
+    : 0
+
   return {
     id: order.id,
     orderNo: order.orderNo,
     customerName: order.customerName,
     status: order.status,
     totalAmount: formatDecimal(order.totalAmount),
+    partialPayment,
+    paidAmount: partialPayment,
+    unpaidAmount,
     profitAmount: formatDecimal(order.profitAmount),
     adjustmentRemark: order.adjustmentRemark || '',
     createdAt: order.createdAt,
@@ -59,8 +73,7 @@ export async function getCustomerDebt(customerId: number, options: CustomerDebtO
   const allOrders = includeAllOrders
     ? await prisma.order.findMany({
         where: {
-          customerId,
-          createdAt: { gte: oneYearAgo() }
+          customerId
         },
         orderBy: { createdAt: 'desc' },
         include: {
@@ -72,19 +85,27 @@ export async function getCustomerDebt(customerId: number, options: CustomerDebtO
 
   const totalAmount = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0)
   const profitAmount = orders.reduce((sum, order) => sum + Number(order.profitAmount), 0)
-  const partialPayment = Math.min(Number(customer.partialPayment || 0), totalAmount)
-  const unpaidAmount = Math.max(totalAmount - partialPayment, 0)
+  const allocatedPartialPayment = formatDecimal(orders.reduce((sum, order) => {
+    return sum + Math.min(Number(order.partialPayment || 0), Number(order.totalAmount || 0))
+  }, 0))
+  const availablePartialPayment = formatDecimal(Math.min(Number(customer.partialPayment || 0), Math.max(totalAmount - allocatedPartialPayment, 0)))
+  const paidAmount = formatDecimal(Math.min(allocatedPartialPayment + availablePartialPayment, totalAmount))
+  const unpaidAmount = Math.max(totalAmount - paidAmount, 0)
 
   return {
     customer: {
       id: customer.id,
       name: customer.name,
       totalDebt: formatDecimal(totalAmount),
-      partialPayment: formatDecimal(partialPayment)
+      partialPayment: paidAmount,
+      allocatedPartialPayment,
+      availablePartialPayment
     },
     totalAmount: formatDecimal(totalAmount),
     totalDebt: formatDecimal(totalAmount),
-    partialPayment: formatDecimal(partialPayment),
+    partialPayment: paidAmount,
+    allocatedPartialPayment,
+    availablePartialPayment,
     unpaidAmount: formatDecimal(unpaidAmount),
     profitAmount: formatDecimal(profitAmount),
     orderCount: orders.length,
@@ -92,10 +113,4 @@ export async function getCustomerDebt(customerId: number, options: CustomerDebtO
     orders: orders.map(mapOrder),
     allOrders: allOrders.map(mapOrder)
   }
-}
-
-function oneYearAgo() {
-  const date = new Date()
-  date.setFullYear(date.getFullYear() - 1)
-  return date
 }

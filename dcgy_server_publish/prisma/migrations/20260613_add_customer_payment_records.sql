@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `customer_payment_records` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `customer_id` INT NOT NULL,
+  `customer_name` VARCHAR(50) NOT NULL,
+  `staff_id` INT NOT NULL,
+  `staff_name` VARCHAR(40) NOT NULL,
+  `order_id` INT NULL,
+  `order_no` VARCHAR(24) NULL,
+  `order_created_at` DATETIME NULL,
+  `action` ENUM('customer_partial_payment', 'order_partial_payment', 'order_pay_off') NOT NULL,
+  `amount` DECIMAL(10, 2) NOT NULL,
+  `unpaid_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `customer_payment_records_customer_id_created_at_idx` (`customer_id`, `created_at`),
+  KEY `customer_payment_records_staff_id_idx` (`staff_id`),
+  KEY `customer_payment_records_order_id_idx` (`order_id`),
+  CONSTRAINT `customer_payment_records_customer_id_fkey` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`),
+  CONSTRAINT `customer_payment_records_staff_id_fkey` FOREIGN KEY (`staff_id`) REFERENCES `staff_users` (`id`),
+  CONSTRAINT `customer_payment_records_order_id_fkey` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

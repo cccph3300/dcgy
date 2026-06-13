@@ -10,5 +10,14 @@ export default defineEventHandler(async (event) => {
   if (!entry) {
     throw createError({ statusCode: 404, statusMessage: '入账记录不存在' })
   }
-  return mapSupplierEntry(entry)
+  const supplier = entry.status === 'unpaid'
+    ? await prisma.supplier.findUnique({
+        where: { id: entry.supplierId },
+        select: { partialPayment: true }
+      })
+    : null
+  return {
+    ...mapSupplierEntry(entry),
+    availablePartialPayment: entry.status === 'unpaid' ? Number(supplier?.partialPayment || 0) : 0
+  }
 })

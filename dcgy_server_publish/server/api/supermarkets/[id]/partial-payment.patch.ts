@@ -2,8 +2,8 @@ import { createError, readBody } from 'h3'
 import { requireStaff } from '../../../utils/auth'
 import { prisma } from '../../../utils/prisma'
 import { toMoney, formatDecimal } from '../../../utils/number'
-import { recalculateCustomerDebt } from '../../../utils/customer-payments'
-import { createCustomerPaymentRecord, getCustomerUnpaidAmount } from '../../../utils/customer-payment-records'
+import { createSupermarketPaymentRecord } from '../../../utils/supermarket-payment-records'
+import { ensureSupermarketAccount, getSupermarketUnpaidAmount, recalculateSupermarketDebt } from '../../../utils/supermarket-payments'
 
 export default defineEventHandler(async (event) => {
   const staff = await requireStaff(event)
@@ -12,29 +12,24 @@ export default defineEventHandler(async (event) => {
   const amount = toMoney(body?.amount, '部分还款金额')
 
   if (!Number.isFinite(id) || id <= 0) {
-    throw createError({ statusCode: 400, statusMessage: '客户不存在' })
+    throw createError({ statusCode: 400, statusMessage: '超市不存在' })
   }
 
   return prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({
+    const account = await tx.supermarketAccount.findUnique({
       where: { id },
       select: { id: true, name: true, partialPayment: true }
     })
-    if (!customer) {
-      throw createError({ statusCode: 404, statusMessage: '客户不存在' })
+    if (!account) {
+      throw createError({ statusCode: 404, statusMessage: '超市不存在' })
     }
 
-    const orders = await tx.order.findMany({
+    const orders = await tx.supermarketOrder.findMany({
       where: {
-        customerId: id,
-        status: 'unpaid'
+        supermarketName: account.name,
+        status: 'active'
       },
-      orderBy: [
-        { createdAt: 'desc' },
-        { id: 'desc' }
-      ],
       select: {
-        id: true,
         totalAmount: true,
         partialPayment: true
       }
@@ -48,21 +43,23 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: '部分还款不能大于未分配欠账' })
     }
 
-    const previousPartialPayment = formatDecimal(customer.partialPayment || 0)
-    await tx.customer.update({
+    const previousPartialPayment = formatDecimal(account.partialPayment || 0)
+    const updated = await tx.supermarketAccount.update({
       where: { id },
       data: {
         totalDebt,
         partialPayment: amount
-      }
+      },
+      select: { id: true, name: true, partialPayment: true, totalDebt: true }
     })
-    await recalculateCustomerDebt(id, tx)
-    const unpaidAmount = await getCustomerUnpaidAmount(id, tx)
-    await createCustomerPaymentRecord({
+    await recalculateSupermarketDebt(account.name, tx)
+    const refreshed = await ensureSupermarketAccount(account.name, tx)
+    const unpaidAmount = await getSupermarketUnpaidAmount(account.name, tx)
+    await createSupermarketPaymentRecord({
       tx,
-      customer,
+      supermarket: { id: refreshed.id, name: refreshed.name },
       staff,
-      action: 'customer_partial_payment',
+      action: 'supermarket_partial_payment',
       amount: formatDecimal(amount - previousPartialPayment),
       unpaidAmount
     })
@@ -70,8 +67,8 @@ export default defineEventHandler(async (event) => {
     return {
       ok: true,
       totalDebt,
-      partialPayment: amount,
-      availablePartialPayment: amount,
+      partialPayment: formatDecimal(updated.partialPayment),
+      availablePartialPayment: formatDecimal(refreshed.partialPayment),
       allocatedPartialPayment,
       unpaidAmount
     }

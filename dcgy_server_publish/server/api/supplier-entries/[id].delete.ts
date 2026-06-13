@@ -53,6 +53,10 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    await tx.supplierPaymentRecord.updateMany({
+      where: { entryId: id },
+      data: { entryId: null }
+    })
     await tx.supplierEntry.delete({ where: { id } })
     await recalculateSupplierDebt(entry.supplierId, tx)
     return { ok: true }

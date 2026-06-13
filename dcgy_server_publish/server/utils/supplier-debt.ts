@@ -2,12 +2,6 @@ import { prisma } from './prisma'
 import { formatDecimal } from './number'
 import { mapSupplierEntry } from './supplier-entries'
 
-function oneYearAgo() {
-  const date = new Date()
-  date.setFullYear(date.getFullYear() - 1)
-  return date
-}
-
 export async function getSupplierDebt(supplierId: number) {
   const supplier = await prisma.supplier.findUnique({
     where: { id: supplierId },
@@ -25,8 +19,7 @@ export async function getSupplierDebt(supplierId: number) {
     }),
     prisma.supplierEntry.findMany({
       where: {
-        supplierId,
-        createdAt: { gte: oneYearAgo() }
+        supplierId
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -34,7 +27,11 @@ export async function getSupplierDebt(supplierId: number) {
 
   const totalAmount = entries.reduce((sum, entry) => sum + Number(entry.totalAmount), 0)
   const totalCommission = entries.reduce((sum, entry) => sum + Number(entry.totalCommission), 0)
-  const partialPayment = Math.min(Number(supplier.partialPayment || 0), totalAmount)
+  const allocatedPartialPayment = formatDecimal(entries.reduce((sum, entry) => {
+    return sum + Math.min(Number(entry.partialPayment || 0), Number(entry.totalAmount || 0))
+  }, 0))
+  const availablePartialPayment = formatDecimal(Math.min(Number(supplier.partialPayment || 0), Math.max(totalAmount - allocatedPartialPayment, 0)))
+  const partialPayment = formatDecimal(Math.min(allocatedPartialPayment + availablePartialPayment, totalAmount))
   const unpaidAmount = Math.max(totalAmount - partialPayment, 0)
 
   return {
@@ -42,12 +39,16 @@ export async function getSupplierDebt(supplierId: number) {
       id: supplier.id,
       name: supplier.name,
       totalDebt: formatDecimal(totalAmount),
-      partialPayment: formatDecimal(partialPayment)
+      partialPayment,
+      allocatedPartialPayment,
+      availablePartialPayment
     },
     totalAmount: formatDecimal(totalAmount),
     totalDebt: formatDecimal(totalAmount),
     totalCommission: formatDecimal(totalCommission),
-    partialPayment: formatDecimal(partialPayment),
+    partialPayment,
+    allocatedPartialPayment,
+    availablePartialPayment,
     unpaidAmount: formatDecimal(unpaidAmount),
     entryCount: entries.length,
     allEntryCount: allEntries.length,
